@@ -7,6 +7,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/arloliu/gocensus/internal/classify"
+	"github.com/arloliu/gocensus/internal/count"
+	"github.com/arloliu/gocensus/internal/discover"
 )
 
 // Options controls repository analysis.
@@ -120,10 +124,126 @@ func Analyze(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, err
 	}
 
-	return Result{
-		Root:       absRoot,
-		ModulePath: modulePath,
-	}, nil
+	files, err := discover.GoFiles(ctx, discover.Options{
+		Root:          absRoot,
+		UseGitignore:  !opts.NoGitignore,
+		ExtraExcludes: opts.ExtraExcludes,
+	})
+	if err != nil {
+		return Result{}, err
+	}
+
+	fileMetrics := make([]FileMetric, 0, len(files))
+	for _, path := range files {
+		kind, err := classify.File(path)
+		if err != nil {
+			return Result{}, err
+		}
+		metrics, err := count.File(path)
+		if err != nil {
+			return Result{}, err
+		}
+		rel, err := filepath.Rel(absRoot, path)
+		if err != nil {
+			return Result{}, err
+		}
+
+		kindString := string(kind)
+		if kind == classify.KindGenerated && opts.IncludeGenerated {
+			kindString = string(classify.KindProduction)
+		}
+		if kind == classify.KindMock && opts.IncludeMocks {
+			kindString = string(classify.KindProduction)
+		}
+		fileMetrics = append(fileMetrics, FileMetric{
+			Path:       filepath.ToSlash(rel),
+			Package:    metrics.Package,
+			Kind:       kindString,
+			Generated:  kind == classify.KindGenerated,
+			RawLines:   metrics.RawLines,
+			CodeLines:  metrics.CodeLines,
+			Tests:      metrics.Tests,
+			Benchmarks: metrics.Benchmarks,
+			Examples:   metrics.Examples,
+		})
+	}
+
+	return buildResult(absRoot, modulePath, fileMetrics), nil
+}
+
+func buildResult(root string, modulePath string, fileMetrics []FileMetric) Result {
+	result := Result{
+		Root:        root,
+		ModulePath:  modulePath,
+		FileMetrics: append([]FileMetric(nil), fileMetrics...),
+	}
+
+	byPackage := map[string]*PackageMetric{}
+	for _, file := range fileMetrics {
+		addFile(&result.Files, &result.Lines, &result.Tests, file)
+		pkg := byPackage[file.Package]
+		if pkg == nil {
+			pkg = &PackageMetric{
+				ImportPath: file.Package,
+				Dir:        file.Package,
+			}
+			byPackage[file.Package] = pkg
+		}
+		addFile(&pkg.Files, &pkg.Lines, &pkg.Tests, file)
+	}
+	result.Ratios = ratios(result.Lines)
+
+	for _, pkg := range byPackage {
+		pkg.Ratios = ratios(pkg.Lines)
+		result.Packages = append(result.Packages, *pkg)
+	}
+	return result
+}
+
+func addFile(files *FileCounts, lines *LineCounts, tests *TestCounts, file FileMetric) {
+	files.Total++
+	tests.Tests += file.Tests
+	tests.Benchmarks += file.Benchmarks
+	tests.Examples += file.Examples
+
+	metric := Metric{Raw: file.RawLines, Effective: file.CodeLines}
+	switch file.Kind {
+	case "production":
+		files.Production++
+		lines.Production.Raw += metric.Raw
+		lines.Production.Effective += metric.Effective
+	case "test":
+		files.Tests++
+		lines.Tests.Raw += metric.Raw
+		lines.Tests.Effective += metric.Effective
+	case "generated":
+		files.Generated++
+		lines.Generated.Raw += metric.Raw
+		lines.Generated.Effective += metric.Effective
+	case "mock":
+		files.Mocks++
+		lines.Mocks.Raw += metric.Raw
+		lines.Mocks.Effective += metric.Effective
+	}
+}
+
+func ratios(lines LineCounts) Ratios {
+	totalRaw := lines.Production.Raw + lines.Tests.Raw + lines.Generated.Raw + lines.Mocks.Raw
+	totalEffective := lines.Production.Effective + lines.Tests.Effective
+	return Ratios{
+		TestToProductionRaw:       divide(lines.Tests.Raw, lines.Production.Raw),
+		TestToProductionEffective: divide(lines.Tests.Effective, lines.Production.Effective),
+		TestShareEffective:        divide(lines.Tests.Effective, totalEffective),
+		GeneratedShareRaw:         divide(lines.Generated.Raw, totalRaw),
+		MockShareRaw:              divide(lines.Mocks.Raw, totalRaw),
+	}
+}
+
+func divide(numerator int, denominator int) float64 {
+	if denominator == 0 {
+		return 0
+	}
+	return float64(numerator) / float64(denominator)
 }
 
 func readModulePath(path string) (string, error) {
