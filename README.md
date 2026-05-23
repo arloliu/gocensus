@@ -7,6 +7,7 @@
 ```bash
 gocensus scan .
 gocensus scan . --format json
+gocensus scan . --format markdown
 gocensus report . --output census.md
 gocensus packages . --sort test-ratio
 gocensus files . --top 20
@@ -17,6 +18,15 @@ The default command is `scan`, so this is equivalent:
 
 ```bash
 gocensus .
+```
+
+### Ignore and Bucket Options
+
+```bash
+gocensus scan . --no-gitignore
+gocensus scan . --exclude 'internal/generated/**'
+gocensus scan . --include-generated
+gocensus scan . --include-mocks
 ```
 
 ## Development
