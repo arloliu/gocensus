@@ -11,16 +11,23 @@ import (
 
 // Options controls repository analysis.
 type Options struct {
-	Root string
+	Root             string
+	NoGitignore      bool
+	ExtraExcludes    []string
+	IncludeGenerated bool
+	IncludeMocks     bool
 }
 
 // Result contains repository census metrics.
 type Result struct {
-	Root       string     `json:"root"`
-	ModulePath string     `json:"module_path"`
-	Files      FileCounts `json:"files"`
-	Lines      LineCounts `json:"lines"`
-	Tests      TestCounts `json:"tests"`
+	Root        string          `json:"root"`
+	ModulePath  string          `json:"module_path"`
+	Files       FileCounts      `json:"files"`
+	Lines       LineCounts      `json:"lines"`
+	Tests       TestCounts      `json:"tests"`
+	Ratios      Ratios          `json:"ratios"`
+	Packages    []PackageMetric `json:"packages"`
+	FileMetrics []FileMetric    `json:"file_metrics"`
 }
 
 // FileCounts summarizes files by role.
@@ -51,6 +58,38 @@ type TestCounts struct {
 	Tests      int `json:"tests"`
 	Benchmarks int `json:"benchmarks"`
 	Examples   int `json:"examples"`
+}
+
+// Ratios summarizes derived repository or package ratios.
+type Ratios struct {
+	TestToProductionRaw       float64 `json:"test_to_production_raw"`
+	TestToProductionEffective float64 `json:"test_to_production_effective"`
+	TestShareEffective        float64 `json:"test_share_effective"`
+	GeneratedShareRaw         float64 `json:"generated_share_raw"`
+	MockShareRaw              float64 `json:"mock_share_raw"`
+}
+
+// PackageMetric contains census metrics for one Go package.
+type PackageMetric struct {
+	ImportPath string     `json:"import_path"`
+	Dir        string     `json:"dir"`
+	Files      FileCounts `json:"files"`
+	Lines      LineCounts `json:"lines"`
+	Tests      TestCounts `json:"tests"`
+	Ratios     Ratios     `json:"ratios"`
+}
+
+// FileMetric contains census metrics for one Go source file.
+type FileMetric struct {
+	Path       string `json:"path"`
+	Package    string `json:"package"`
+	Kind       string `json:"kind"`
+	Generated  bool   `json:"generated"`
+	RawLines   int    `json:"raw_lines"`
+	CodeLines  int    `json:"code_lines"`
+	Tests      int    `json:"tests"`
+	Benchmarks int    `json:"benchmarks"`
+	Examples   int    `json:"examples"`
 }
 
 // Analyze returns census metrics for a Go repository.

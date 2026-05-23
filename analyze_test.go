@@ -29,4 +29,10 @@ func TestAnalyzeEmptyGoModule(t *testing.T) {
 	if result.Files.Total != 0 {
 		t.Fatalf("Files.Total = %d, want 0", result.Files.Total)
 	}
+	if len(result.Packages) != 0 {
+		t.Fatalf("Packages length = %d, want 0", len(result.Packages))
+	}
+	if len(result.FileMetrics) != 0 {
+		t.Fatalf("FileMetrics length = %d, want 0", len(result.FileMetrics))
+	}
 }
