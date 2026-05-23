@@ -16,11 +16,40 @@ func TestTableIncludesCoreSections(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := out.String()
-	for _, want := range []string{"Go Census: example.com/app", "Files", "Lines", "Ratios", "Tests"} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("table missing %q:\n%s", want, text)
-		}
+	want := `Go Census: example.com/app
+
+Overview
+  Go files: 15    Packages: 1    Test funcs: 17
+
+Code Mix
+  Kind          Files   Raw Lines   Effective Lines
+  Production       8       1,192             1,012
+  Tests            7         528               448
+  Generated        0           0                 0
+  Mocks            0           0                 0
+  Total           15       1,720             1,460
+
+Ratios
+  Test / Production       0.44:1
+  Test Share               30.7%
+  Generated Share           0.0%
+  Mock Share                0.0%
+
+Test Inventory
+  Tests          17
+  Benchmarks      0
+  Examples        0
+
+Notes
+  Raw Lines        Physical lines, including blanks and comments.
+  Effective Lines  Lines containing non-comment Go tokens.
+  Production       Non-test Go files, excluding generated files and mocks.
+  Tests            *_test.go files.
+  Generated        Files with generated-code markers or generated suffixes.
+  Mocks            Files classified as mock/support code.
+`
+	if out.String() != want {
+		t.Fatalf("table output mismatch\nwant:\n%s\ngot:\n%s", want, out.String())
 	}
 }
 
@@ -58,13 +87,13 @@ func sample() gocensus.Result {
 	return gocensus.Result{
 		Root:       "/repo",
 		ModulePath: "example.com/app",
-		Files:      gocensus.FileCounts{Total: 2, Production: 1, Tests: 1},
+		Files:      gocensus.FileCounts{Total: 15, Production: 8, Tests: 7},
 		Lines: gocensus.LineCounts{
-			Production: gocensus.Metric{Raw: 10, Effective: 8},
-			Tests:      gocensus.Metric{Raw: 6, Effective: 4},
+			Production: gocensus.Metric{Raw: 1192, Effective: 1012},
+			Tests:      gocensus.Metric{Raw: 528, Effective: 448},
 		},
-		Tests:  gocensus.TestCounts{Tests: 2},
-		Ratios: gocensus.Ratios{TestToProductionEffective: 0.5, TestShareEffective: 0.3333333333},
+		Tests:  gocensus.TestCounts{Tests: 17},
+		Ratios: gocensus.Ratios{TestToProductionEffective: 0.442687747, TestShareEffective: 0.306849315},
 		Packages: []gocensus.PackageMetric{{
 			ImportPath: "main",
 			Lines: gocensus.LineCounts{
