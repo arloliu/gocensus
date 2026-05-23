@@ -6,13 +6,12 @@
 
 **Architecture:** Keep analysis independent from presentation. The public `gocensus.Analyze(ctx, Options)` API delegates to internal packages for discovery, classification, counting, aggregation, and rendering; CLI commands only parse flags, call the API, and write renderer output.
 
-**Tech Stack:** Go 1.21+, standard library `go/scanner`, `go/parser`, `go/ast`, `filepath.WalkDir`, `slices`, `golangci-lint` v2, Makefile, and `github.com/go-git/go-git/v5/plumbing/format/gitignore` for `.gitignore` pattern matching.
+**Tech Stack:** Go 1.21+, standard library `go/scanner`, `go/parser`, `go/ast`, `filepath.WalkDir`, `path.Match`, `slices`, `golangci-lint` v2, and Makefile.
 
 ---
 
 ## File Structure
 
-- Modify `go.mod`: add `github.com/go-git/go-git/v5` for gitignore parsing.
 - Modify `census.go`: expand public API types, options, ratios, package metrics, and file metrics.
 - Modify `analyze_test.go`: cover end-to-end analysis behavior against fixture repositories.
 - Create `internal/discover/discover.go`: walk repositories, apply hard excludes and `.gitignore`, return Go source files.
@@ -176,19 +175,18 @@ Expected: `make check` passes before the commit. Commit message has no trailers.
 ## Task 2: Discover Go Files With Excludes and .gitignore
 
 **Files:**
-- Modify: `go.mod`
 - Create: `internal/discover/discover.go`
 - Create: `internal/discover/discover_test.go`
 
-- [ ] **Step 1: Add gitignore dependency**
+- [ ] **Step 1: Keep discovery dependency-free**
 
 Run:
 
 ```bash
-go get github.com/go-git/go-git/v5@v5.13.0
+go list -m all
 ```
 
-Expected: `go.mod` and `go.sum` are updated.
+Expected: only `github.com/arloliu/gocensus` is listed. Discovery uses the standard library so installing the CLI stays lightweight.
 
 - [ ] **Step 2: Write failing discovery tests**
 
@@ -323,17 +321,26 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
-
-	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 )
 
 type Options struct {
 	Root          string
 	UseGitignore  bool
 	ExtraExcludes []string
+}
+
+type matcher struct {
+	patterns []ignorePattern
+}
+
+type ignorePattern struct {
+	domain  string
+	pattern string
+	dirOnly bool
 }
 
 func GoFiles(ctx context.Context, opts Options) ([]string, error) {
@@ -371,7 +378,7 @@ func GoFiles(ctx context.Context, opts Options) ([]string, error) {
 		if entry.IsDir() && isHardExcludedDir(entry.Name()) {
 			return filepath.SkipDir
 		}
-		if matcher != nil && matcher.Match(strings.Split(rel, "/"), entry.IsDir()) {
+		if matcher.match(rel, entry.IsDir()) {
 			if entry.IsDir() {
 				return filepath.SkipDir
 			}
@@ -390,8 +397,8 @@ func GoFiles(ctx context.Context, opts Options) ([]string, error) {
 	return files, nil
 }
 
-func buildMatcher(root string, opts Options) (gitignore.Matcher, error) {
-	var patterns []gitignore.Pattern
+func buildMatcher(root string, opts Options) (matcher, error) {
+	var patterns []ignorePattern
 	if opts.UseGitignore {
 		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 			if walkErr != nil {
@@ -407,8 +414,7 @@ func buildMatcher(root string, opts Options) (gitignore.Matcher, error) {
 			if err != nil {
 				return err
 			}
-			domain := domainParts(relDir)
-			loaded, err := readPatterns(path, domain)
+			loaded, err := readPatterns(path, cleanDomain(relDir))
 			if err != nil {
 				return err
 			}
@@ -420,19 +426,14 @@ func buildMatcher(root string, opts Options) (gitignore.Matcher, error) {
 		}
 	}
 	for _, pattern := range opts.ExtraExcludes {
-		pattern = strings.TrimSpace(pattern)
-		if pattern == "" {
-			continue
+		if parsed, ok := parsePattern(pattern, ""); ok {
+			patterns = append(patterns, parsed)
 		}
-		patterns = append(patterns, gitignore.ParsePattern(pattern, nil))
 	}
-	if len(patterns) == 0 {
-		return nil, nil
-	}
-	return gitignore.NewMatcher(patterns), nil
+	return matcher{patterns: patterns}, nil
 }
 
-func readPatterns(path string, domain []string) ([]gitignore.Pattern, error) {
+func readPatterns(path string, domain string) ([]ignorePattern, error) {
 	file, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -444,14 +445,12 @@ func readPatterns(path string, domain []string) ([]gitignore.Pattern, error) {
 		_ = file.Close()
 	}()
 
-	var patterns []gitignore.Pattern
+	var patterns []ignorePattern
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
+		if parsed, ok := parsePattern(scanner.Text(), domain); ok {
+			patterns = append(patterns, parsed)
 		}
-		patterns = append(patterns, gitignore.ParsePattern(line, domain))
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
@@ -459,11 +458,70 @@ func readPatterns(path string, domain []string) ([]gitignore.Pattern, error) {
 	return patterns, nil
 }
 
-func domainParts(relDir string) []string {
-	if relDir == "." || relDir == "" {
-		return nil
+func parsePattern(raw string, domain string) (ignorePattern, bool) {
+	pattern := strings.TrimSpace(raw)
+	if pattern == "" || strings.HasPrefix(pattern, "#") || strings.HasPrefix(pattern, "!") {
+		return ignorePattern{}, false
 	}
-	return strings.Split(filepath.ToSlash(relDir), "/")
+	dirOnly := strings.HasSuffix(pattern, "/")
+	pattern = strings.TrimPrefix(strings.TrimSuffix(pattern, "/"), "/")
+	if pattern == "" {
+		return ignorePattern{}, false
+	}
+	return ignorePattern{
+		domain:  domain,
+		pattern: filepath.ToSlash(pattern),
+		dirOnly: dirOnly,
+	}, true
+}
+
+func (m matcher) match(rel string, isDir bool) bool {
+	for _, pattern := range m.patterns {
+		if pattern.match(rel, isDir) {
+			return true
+		}
+	}
+	return false
+}
+
+func (p ignorePattern) match(rel string, isDir bool) bool {
+	target, ok := p.target(rel)
+	if !ok {
+		return false
+	}
+	if p.dirOnly {
+		return isDir && target == p.pattern || strings.HasPrefix(target, p.pattern+"/")
+	}
+	if !strings.Contains(p.pattern, "/") {
+		return path.Base(target) == p.pattern
+	}
+	matched, err := path.Match(p.pattern, target)
+	if err != nil {
+		return false
+	}
+	return matched
+}
+
+func (p ignorePattern) target(rel string) (string, bool) {
+	if p.domain == "" {
+		return rel, true
+	}
+	if rel == p.domain {
+		return "", true
+	}
+	prefix := p.domain + "/"
+	if !strings.HasPrefix(rel, prefix) {
+		return "", false
+	}
+	return strings.TrimPrefix(rel, prefix), true
+}
+
+func cleanDomain(relDir string) string {
+	relDir = filepath.ToSlash(relDir)
+	if relDir == "." {
+		return ""
+	}
+	return relDir
 }
 
 func isHardExcludedDir(name string) bool {
@@ -490,7 +548,7 @@ Run:
 
 ```bash
 make check
-git add go.mod go.sum internal/discover
+	git add internal/discover docs/plans/gocensus-scan.md
 git commit -m "feat: discover go files with gitignore"
 ```
 
@@ -1553,4 +1611,4 @@ Expected: Commit succeeds with no trailers.
 - Spec coverage: The plan covers library API, CLI `scan`, default command, report output, JSON/Markdown/table renderers, `.gitignore`, production/test/generated/mock classification, effective line counting, package metrics, file metrics, and test declarations.
 - Placeholder scan: The plan contains concrete file paths, commands, test code, expected failures, expected passes, and commit messages.
 - Type consistency: Public types are defined in Task 1 and reused by reporting, rendering, CLI, and end-to-end analysis tasks.
-- Risk notes: Task 2 uses `go-git` gitignore matching so nested `.gitignore` behavior must be verified by the included tests. Task 6 contains the main integration risk because it joins discovery, classification, counting, and aggregation.
+- Risk notes: Task 2 implements a focused `.gitignore` matcher for common ignore patterns instead of adding a large dependency. Task 6 contains the main integration risk because it joins discovery, classification, counting, and aggregation.
