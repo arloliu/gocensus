@@ -12,6 +12,7 @@ gocensus report . -o census.md
 gocensus packages . -s test-ratio
 gocensus files . -n 20
 gocensus tests .
+gocensus version
 ```
 
 The default command is `scan`, so this is equivalent:
@@ -69,5 +70,23 @@ make lint
 make test
 make build
 ```
+
+Build a binary with an explicit version:
+
+```bash
+make build VERSION=v0.1.0
+./bin/gocensus version
+```
+
+By default, `make build` uses `git describe --tags --always --dirty` as the version and injects it with `-ldflags`. Release builds can set `VERSION` explicitly.
+
+When installing from source with Go, use a tagged module version:
+
+```bash
+go install github.com/arloliu/gocensus/cmd/gocensus@v0.1.0
+gocensus version
+```
+
+For `go install ...@v0.1.0`, `gocensus version` uses Go build metadata embedded by the toolchain. For local development builds without a module version, it falls back to `dev` unless the Makefile injects a git tag or hash.
 
 Run `make check` before committing.
