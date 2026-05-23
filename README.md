@@ -6,11 +6,11 @@
 
 ```bash
 gocensus scan .
-gocensus scan . --format json
-gocensus scan . --format markdown
-gocensus report . --output census.md
-gocensus packages . --sort test-ratio
-gocensus files . --top 20
+gocensus scan . -f json
+gocensus scan . -f markdown
+gocensus report . -o census.md
+gocensus packages . -s test-ratio
+gocensus files . -n 20
 gocensus tests .
 ```
 
@@ -54,7 +54,7 @@ Examples
 
 ```bash
 gocensus scan . --no-gitignore
-gocensus scan . --exclude 'internal/generated/**'
+gocensus scan . -x 'internal/generated/**'
 gocensus scan . --include-generated
 gocensus scan . --include-mocks
 ```

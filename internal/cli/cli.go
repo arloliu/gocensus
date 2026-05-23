@@ -19,7 +19,7 @@ func Run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer,
 	commandLine := commandLine{}
 	parser, err := kong.New(&commandLine,
 		kong.Name("gocensus"),
-		kong.Description("Analyze Go repositories: files, lines, tests, ratios, and reports."),
+		kong.Description("Analyze Go repositories and separate production, test, generated, and mock code into readable counts, ratios, and reports."),
 		kong.Writers(stdout, stderr),
 		kong.UsageOnError(),
 		kong.Exit(func(exitCode int) {
@@ -76,45 +76,45 @@ type runtime struct {
 type commandLine struct {
 	analysisFlags `embed:""`
 
-	Scan     scanCmd     `cmd:"" default:"withargs" help:"Repository-level overview."`
-	Report   reportCmd   `cmd:"" help:"Generate a repository report."`
-	Packages packagesCmd `cmd:"" help:"Package-by-package metrics."`
-	Files    filesCmd    `cmd:"" help:"File-by-file metrics."`
-	Tests    testsCmd    `cmd:"" help:"Test/benchmark/example inventory."`
-	Version  versionCmd  `cmd:"" help:"Print version/build info."`
+	Scan     scanCmd     `cmd:"" default:"withargs" help:"Print the main repository census."`
+	Report   reportCmd   `cmd:"" help:"Write a repository report."`
+	Packages packagesCmd `cmd:"" help:"Show package-level production and test metrics."`
+	Files    filesCmd    `cmd:"" help:"Show file-level classification and line counts."`
+	Tests    testsCmd    `cmd:"" help:"Summarize tests, subtests, benchmarks, and examples."`
+	Version  versionCmd  `cmd:"" help:"Print the gocensus version."`
 }
 
 type analysisFlags struct {
 	NoGitignore      bool     `name:"no-gitignore" help:"Do not read .gitignore exclude rules."`
-	ExtraExcludes    []string `name:"exclude" placeholder:"PATTERN" help:"Exclude paths matching pattern; can be repeated."`
+	ExtraExcludes    []string `name:"exclude" short:"x" placeholder:"PATTERN" help:"Exclude paths matching pattern; can be repeated."`
 	IncludeGenerated bool     `name:"include-generated" help:"Include generated files in production totals."`
 	IncludeMocks     bool     `name:"include-mocks" help:"Include mock files in production totals."`
 }
 
 type rootArg struct {
-	Root string `arg:"" optional:"" default:"." type:"path" help:"Repository root to analyze."`
+	Root string `arg:"" optional:"" default:"." type:"path" help:"Repository root to analyze. Defaults to the current directory."`
 }
 
 type scanCmd struct {
 	rootArg
-	Format string `enum:"table,json,markdown" default:"table" help:"Output format: table, json, or markdown."`
-	Output string `placeholder:"PATH" help:"Write output to file instead of stdout."`
+	Format string `short:"f" enum:"table,json,markdown" default:"table" help:"Output format: table, json, or markdown."`
+	Output string `short:"o" placeholder:"PATH" help:"Write output to file instead of stdout."`
 }
 
 type reportCmd struct {
 	rootArg
-	Format string `enum:"table,json,markdown" default:"markdown" help:"Output format: table, json, or markdown."`
-	Output string `placeholder:"PATH" help:"Write output to file instead of stdout."`
+	Format string `short:"f" enum:"table,json,markdown" default:"markdown" help:"Output format: table, json, or markdown."`
+	Output string `short:"o" placeholder:"PATH" help:"Write output to file instead of stdout."`
 }
 
 type packagesCmd struct {
 	rootArg
-	Sort string `enum:"path,test-ratio,prod-lines,test-lines" default:"path" help:"Sort packages by path, test-ratio, prod-lines, or test-lines."`
+	Sort string `short:"s" enum:"path,test-ratio,prod-lines,test-lines" default:"path" help:"Sort packages by path, test-ratio, prod-lines, or test-lines."`
 }
 
 type filesCmd struct {
 	rootArg
-	Top int `default:"20" help:"Maximum number of files to print; use 0 for all files."`
+	Top int `short:"n" default:"20" help:"Maximum number of files to print; use 0 for all files."`
 }
 
 type testsCmd struct {
@@ -122,6 +122,30 @@ type testsCmd struct {
 }
 
 type versionCmd struct{}
+
+func (cmd scanCmd) Help() string {
+	return "Analyze a Go repository and print the main census: files, raw and effective lines, production/test mix, ratios, known test cases, and notes for each metric."
+}
+
+func (cmd reportCmd) Help() string {
+	return "Generate the same repository analysis as a report. Markdown is the default format so the output can be saved in CI artifacts, release notes, or project documentation."
+}
+
+func (cmd packagesCmd) Help() string {
+	return "List each package with effective production and test lines plus its test-to-production ratio. Sort by test-ratio, prod-lines, or test-lines to find thinly tested or large packages."
+}
+
+func (cmd filesCmd) Help() string {
+	return "List file-level classification and line counts. Use this to find large files or files that landed in an unexpected test, generated, or mock bucket."
+}
+
+func (cmd testsCmd) Help() string {
+	return "Summarize test inventory: top-level tests, statically countable subtests, dynamic subtest sites, benchmarks, subbenchmarks, and examples."
+}
+
+func (cmd versionCmd) Help() string {
+	return "Print the gocensus version and build identifier."
+}
 
 func (cmd *scanCmd) Run(cli *commandLine, rt *runtime) error {
 	result, err := analyze(rt.ctx, cmd.Root, cli.analysisFlags)
