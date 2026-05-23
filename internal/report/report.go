@@ -55,7 +55,11 @@ func Build(input Input) gocensus.Result {
 func addFile(files *gocensus.FileCounts, lines *gocensus.LineCounts, tests *gocensus.TestCounts, file gocensus.FileMetric) {
 	files.Total++
 	tests.Tests += file.Tests
+	tests.StaticSubtests += file.StaticSubtests
+	tests.DynamicSubtestSites += file.DynamicSubtestSites
 	tests.Benchmarks += file.Benchmarks
+	tests.StaticSubbenchmarks += file.StaticSubbenchmarks
+	tests.DynamicSubbenchmarkSites += file.DynamicSubbenchmarkSites
 	tests.Examples += file.Examples
 
 	metric := gocensus.Metric{Raw: file.RawLines, Effective: file.CodeLines}

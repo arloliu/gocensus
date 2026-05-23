@@ -36,15 +36,21 @@ Ratios
   Mock Share                0.0%
 
 Test Inventory
-  Tests          17
-  Benchmarks      0
-  Examples        0
+  Tests                   17
+  Static Subtests         42
+  Dynamic Subtest Sites    3
+  Benchmarks               2
+  Static Subbenchmarks     4
+  Dynamic Benchmark Sites  1
+  Examples                 1
 
 Notes
   Raw Lines        Physical lines, including blanks and comments.
   Effective Lines  Lines containing non-comment Go tokens.
   Production       Non-test Go files, excluding generated files and mocks.
   Tests            *_test.go files.
+  Static Subtests  t.Run/b.Run cases with statically countable case data.
+  Dynamic Sites    t.Run/b.Run call sites with runtime-dependent case counts.
   Generated        Files with generated-code markers or generated suffixes.
   Mocks            Files classified as mock/support code.
 `
@@ -92,7 +98,15 @@ func sample() gocensus.Result {
 			Production: gocensus.Metric{Raw: 1192, Effective: 1012},
 			Tests:      gocensus.Metric{Raw: 528, Effective: 448},
 		},
-		Tests:  gocensus.TestCounts{Tests: 17},
+		Tests: gocensus.TestCounts{
+			Tests:                    17,
+			StaticSubtests:           42,
+			DynamicSubtestSites:      3,
+			Benchmarks:               2,
+			StaticSubbenchmarks:      4,
+			DynamicSubbenchmarkSites: 1,
+			Examples:                 1,
+		},
 		Ratios: gocensus.Ratios{TestToProductionEffective: 0.442687747, TestShareEffective: 0.306849315},
 		Packages: []gocensus.PackageMetric{{
 			ImportPath: "main",

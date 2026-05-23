@@ -87,13 +87,25 @@ func table(w io.Writer, result gocensus.Result) error {
 	if _, err := fmt.Fprintln(w, "Test Inventory"); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "  %-13s%4s\n", "Tests", formatInt(result.Tests.Tests)); err != nil {
+	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Tests", formatInt(result.Tests.Tests)); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "  %-13s%4s\n", "Benchmarks", formatInt(result.Tests.Benchmarks)); err != nil {
+	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Static Subtests", formatInt(result.Tests.StaticSubtests)); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "  %-13s%4s\n", "Examples", formatInt(result.Tests.Examples)); err != nil {
+	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Dynamic Subtest Sites", formatInt(result.Tests.DynamicSubtestSites)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Benchmarks", formatInt(result.Tests.Benchmarks)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Static Subbenchmarks", formatInt(result.Tests.StaticSubbenchmarks)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Dynamic Benchmark Sites", formatInt(result.Tests.DynamicSubbenchmarkSites)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Examples", formatInt(result.Tests.Examples)); err != nil {
 		return err
 	}
 
@@ -111,6 +123,8 @@ func table(w io.Writer, result gocensus.Result) error {
 		{field: "Effective Lines", text: "Lines containing non-comment Go tokens."},
 		{field: "Production", text: "Non-test Go files, excluding generated files and mocks."},
 		{field: "Tests", text: "*_test.go files."},
+		{field: "Static Subtests", text: "t.Run/b.Run cases with statically countable case data."},
+		{field: "Dynamic Sites", text: "t.Run/b.Run call sites with runtime-dependent case counts."},
 		{field: "Generated", text: "Files with generated-code markers or generated suffixes."},
 		{field: "Mocks", text: "Files classified as mock/support code."},
 	}
@@ -144,7 +158,11 @@ func markdown(w io.Writer, result gocensus.Result) error {
 ## Tests
 
 - Test funcs: %d
+- Static subtests: %d
+- Dynamic subtest sites: %d
 - Benchmarks: %d
+- Static sub-benchmarks: %d
+- Dynamic sub-benchmark sites: %d
 - Examples: %d
 
 ## Packages
@@ -170,7 +188,11 @@ func markdown(w io.Writer, result gocensus.Result) error {
 		pct(result.Ratios.GeneratedShareRaw),
 		pct(result.Ratios.MockShareRaw),
 		result.Tests.Tests,
+		result.Tests.StaticSubtests,
+		result.Tests.DynamicSubtestSites,
 		result.Tests.Benchmarks,
+		result.Tests.StaticSubbenchmarks,
+		result.Tests.DynamicSubbenchmarkSites,
 		result.Tests.Examples,
 	); err != nil {
 		return err

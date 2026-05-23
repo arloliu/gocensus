@@ -60,9 +60,13 @@ type Metric struct {
 
 // TestCounts summarizes Go test declarations.
 type TestCounts struct {
-	Tests      int `json:"tests"`
-	Benchmarks int `json:"benchmarks"`
-	Examples   int `json:"examples"`
+	Tests                    int `json:"tests"`
+	StaticSubtests           int `json:"static_subtests"`
+	DynamicSubtestSites      int `json:"dynamic_subtest_sites"`
+	Benchmarks               int `json:"benchmarks"`
+	StaticSubbenchmarks      int `json:"static_subbenchmarks"`
+	DynamicSubbenchmarkSites int `json:"dynamic_subbenchmark_sites"`
+	Examples                 int `json:"examples"`
 }
 
 // Ratios summarizes derived repository or package ratios.
@@ -86,15 +90,19 @@ type PackageMetric struct {
 
 // FileMetric contains census metrics for one Go source file.
 type FileMetric struct {
-	Path       string `json:"path"`
-	Package    string `json:"package"`
-	Kind       string `json:"kind"`
-	Generated  bool   `json:"generated"`
-	RawLines   int    `json:"raw_lines"`
-	CodeLines  int    `json:"code_lines"`
-	Tests      int    `json:"tests"`
-	Benchmarks int    `json:"benchmarks"`
-	Examples   int    `json:"examples"`
+	Path                     string `json:"path"`
+	Package                  string `json:"package"`
+	Kind                     string `json:"kind"`
+	Generated                bool   `json:"generated"`
+	RawLines                 int    `json:"raw_lines"`
+	CodeLines                int    `json:"code_lines"`
+	Tests                    int    `json:"tests"`
+	StaticSubtests           int    `json:"static_subtests"`
+	DynamicSubtestSites      int    `json:"dynamic_subtest_sites"`
+	Benchmarks               int    `json:"benchmarks"`
+	StaticSubbenchmarks      int    `json:"static_subbenchmarks"`
+	DynamicSubbenchmarkSites int    `json:"dynamic_subbenchmark_sites"`
+	Examples                 int    `json:"examples"`
 }
 
 // Analyze returns census metrics for a Go repository.
@@ -157,15 +165,19 @@ func Analyze(ctx context.Context, opts Options) (Result, error) {
 			kindString = string(classify.KindProduction)
 		}
 		fileMetrics = append(fileMetrics, FileMetric{
-			Path:       filepath.ToSlash(rel),
-			Package:    metrics.Package,
-			Kind:       kindString,
-			Generated:  kind == classify.KindGenerated,
-			RawLines:   metrics.RawLines,
-			CodeLines:  metrics.CodeLines,
-			Tests:      metrics.Tests,
-			Benchmarks: metrics.Benchmarks,
-			Examples:   metrics.Examples,
+			Path:                     filepath.ToSlash(rel),
+			Package:                  metrics.Package,
+			Kind:                     kindString,
+			Generated:                kind == classify.KindGenerated,
+			RawLines:                 metrics.RawLines,
+			CodeLines:                metrics.CodeLines,
+			Tests:                    metrics.Tests,
+			StaticSubtests:           metrics.StaticSubtests,
+			DynamicSubtestSites:      metrics.DynamicSubtestSites,
+			Benchmarks:               metrics.Benchmarks,
+			StaticSubbenchmarks:      metrics.StaticSubbenchmarks,
+			DynamicSubbenchmarkSites: metrics.DynamicSubbenchmarkSites,
+			Examples:                 metrics.Examples,
 		})
 	}
 
@@ -213,7 +225,11 @@ func buildResult(root string, modulePath string, fileMetrics []FileMetric) Resul
 func addFile(files *FileCounts, lines *LineCounts, tests *TestCounts, file FileMetric) {
 	files.Total++
 	tests.Tests += file.Tests
+	tests.StaticSubtests += file.StaticSubtests
+	tests.DynamicSubtestSites += file.DynamicSubtestSites
 	tests.Benchmarks += file.Benchmarks
+	tests.StaticSubbenchmarks += file.StaticSubbenchmarks
+	tests.DynamicSubbenchmarkSites += file.DynamicSubbenchmarkSites
 	tests.Examples += file.Examples
 
 	metric := Metric{Raw: file.RawLines, Effective: file.CodeLines}

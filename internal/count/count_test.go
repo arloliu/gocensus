@@ -60,6 +60,100 @@ func helper() {}
 	}
 }
 
+func TestFileCountsStaticSubtests(t *testing.T) {
+	path := write(t, `package main
+
+import "testing"
+
+func TestLiteralSubtests(t *testing.T) {
+	t.Run("one", func(t *testing.T) {})
+	t.Run("two", func(t *testing.T) {})
+}
+
+func BenchmarkLiteralSubbenchmarks(b *testing.B) {
+	b.Run("one", func(b *testing.B) {})
+}
+`)
+
+	metrics, err := count.File(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metrics.StaticSubtests != 2 {
+		t.Fatalf("StaticSubtests = %d, want 2", metrics.StaticSubtests)
+	}
+	if metrics.StaticSubbenchmarks != 1 {
+		t.Fatalf("StaticSubbenchmarks = %d, want 1", metrics.StaticSubbenchmarks)
+	}
+}
+
+func TestFileCountsTableDrivenSubtests(t *testing.T) {
+	path := write(t, `package main
+
+import "testing"
+
+func TestTableSubtests(t *testing.T) {
+	cases := []struct {
+		name string
+	}{
+		{name: "one"},
+		{name: "two"},
+		{name: "three"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {})
+	}
+}
+`)
+
+	metrics, err := count.File(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metrics.StaticSubtests != 3 {
+		t.Fatalf("StaticSubtests = %d, want 3", metrics.StaticSubtests)
+	}
+	if metrics.DynamicSubtestSites != 0 {
+		t.Fatalf("DynamicSubtestSites = %d, want 0", metrics.DynamicSubtestSites)
+	}
+}
+
+func TestFileCountsDynamicSubtestSites(t *testing.T) {
+	path := write(t, `package main
+
+import "testing"
+
+func TestDynamicSubtests(t *testing.T) {
+	for _, name := range loadCases() {
+		t.Run(name, func(t *testing.T) {})
+	}
+}
+
+func BenchmarkDynamicSubbenchmarks(b *testing.B) {
+	for _, name := range loadCases() {
+		b.Run(name, func(b *testing.B) {})
+	}
+}
+`)
+
+	metrics, err := count.File(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metrics.StaticSubtests != 0 {
+		t.Fatalf("StaticSubtests = %d, want 0", metrics.StaticSubtests)
+	}
+	if metrics.DynamicSubtestSites != 1 {
+		t.Fatalf("DynamicSubtestSites = %d, want 1", metrics.DynamicSubtestSites)
+	}
+	if metrics.StaticSubbenchmarks != 0 {
+		t.Fatalf("StaticSubbenchmarks = %d, want 0", metrics.StaticSubbenchmarks)
+	}
+	if metrics.DynamicSubbenchmarkSites != 1 {
+		t.Fatalf("DynamicSubbenchmarkSites = %d, want 1", metrics.DynamicSubbenchmarkSites)
+	}
+}
+
 func write(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()
