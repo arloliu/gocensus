@@ -28,14 +28,16 @@ func Result(w io.Writer, result gocensus.Result, format string) error {
 func table(w io.Writer, result gocensus.Result) error {
 	totalRaw := result.Lines.Production.Raw + result.Lines.Tests.Raw + result.Lines.Generated.Raw + result.Lines.Mocks.Raw
 	totalEffective := result.Lines.Production.Effective + result.Lines.Tests.Effective + result.Lines.Generated.Effective + result.Lines.Mocks.Effective
+	knownTestCases := result.Tests.Tests + result.Tests.StaticSubtests
+	knownBenchmarkCases := result.Tests.Benchmarks + result.Tests.StaticSubbenchmarks
 
 	if _, err := fmt.Fprintf(w, "Go Census: %s\n\n", displayName(result)); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "Overview\n  Go files: %s    Packages: %s    Test funcs: %s\n\n",
+	if _, err := fmt.Fprintf(w, "Overview\n  Go files: %s    Packages: %s    Known test cases: %s\n\n",
 		formatInt(result.Files.Total),
 		formatInt(len(result.Packages)),
-		formatInt(result.Tests.Tests),
+		formatInt(knownTestCases),
 	); err != nil {
 		return err
 	}
@@ -87,13 +89,19 @@ func table(w io.Writer, result gocensus.Result) error {
 	if _, err := fmt.Fprintln(w, "Test Inventory"); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Tests", formatInt(result.Tests.Tests)); err != nil {
+	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Known Test Cases", formatInt(knownTestCases)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Top-level Tests", formatInt(result.Tests.Tests)); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Static Subtests", formatInt(result.Tests.StaticSubtests)); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Dynamic Subtest Sites", formatInt(result.Tests.DynamicSubtestSites)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Known Benchmark Cases", formatInt(knownBenchmarkCases)); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Benchmarks", formatInt(result.Tests.Benchmarks)); err != nil {
@@ -123,6 +131,7 @@ func table(w io.Writer, result gocensus.Result) error {
 		{field: "Effective Lines", text: "Lines containing non-comment Go tokens."},
 		{field: "Production", text: "Non-test Go files, excluding generated files and mocks."},
 		{field: "Tests", text: "*_test.go files."},
+		{field: "Known Cases", text: "Top-level tests plus statically countable subtests."},
 		{field: "Static Subtests", text: "t.Run/b.Run cases with statically countable case data."},
 		{field: "Dynamic Sites", text: "t.Run/b.Run call sites with runtime-dependent case counts."},
 		{field: "Generated", text: "Files with generated-code markers or generated suffixes."},

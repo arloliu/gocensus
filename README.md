@@ -20,6 +20,27 @@ The default command is `scan`, so this is equivalent:
 gocensus .
 ```
 
+### Test Inventory
+
+```text
+Tests
+  Known Test Cases         12
+  Top-level Tests           5
+  Static Subtests           7
+  Dynamic Subtest Sites     2
+
+Benchmarks
+  Known Benchmark Cases     3
+  Top-level Benchmarks      1
+  Static Subbenchmarks      2
+  Dynamic Benchmark Sites   1
+
+Examples
+  Examples                  4
+```
+
+`Known Test Cases` is the sum of top-level `TestXxx` functions and subtests whose case count can be determined statically. Dynamic subtest sites are reported separately because their runtime case count is not knowable from source alone.
+
 ### Ignore and Bucket Options
 
 ```bash

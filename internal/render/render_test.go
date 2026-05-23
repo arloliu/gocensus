@@ -19,7 +19,7 @@ func TestTableIncludesCoreSections(t *testing.T) {
 	want := `Go Census: example.com/app
 
 Overview
-  Go files: 15    Packages: 1    Test funcs: 17
+  Go files: 15    Packages: 1    Known test cases: 59
 
 Code Mix
   Kind          Files   Raw Lines   Effective Lines
@@ -36,9 +36,11 @@ Ratios
   Mock Share                0.0%
 
 Test Inventory
-  Tests                   17
+  Known Test Cases        59
+  Top-level Tests         17
   Static Subtests         42
   Dynamic Subtest Sites    3
+  Known Benchmark Cases    6
   Benchmarks               2
   Static Subbenchmarks     4
   Dynamic Benchmark Sites  1
@@ -49,6 +51,7 @@ Notes
   Effective Lines  Lines containing non-comment Go tokens.
   Production       Non-test Go files, excluding generated files and mocks.
   Tests            *_test.go files.
+  Known Cases      Top-level tests plus statically countable subtests.
   Static Subtests  t.Run/b.Run cases with statically countable case data.
   Dynamic Sites    t.Run/b.Run call sites with runtime-dependent case counts.
   Generated        Files with generated-code markers or generated suffixes.

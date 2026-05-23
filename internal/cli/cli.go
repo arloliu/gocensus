@@ -237,9 +237,32 @@ func renderFiles(w io.Writer, result gocensus.Result, top int) error {
 }
 
 func renderTests(w io.Writer, result gocensus.Result) error {
-	_, err := fmt.Fprintf(w, "Tests\n  Test funcs  %d\n  Benchmarks  %d\n  Examples    %d\n",
+	knownTestCases := result.Tests.Tests + result.Tests.StaticSubtests
+	knownBenchmarkCases := result.Tests.Benchmarks + result.Tests.StaticSubbenchmarks
+
+	_, err := fmt.Fprintf(w, `Tests
+  Known Test Cases         %d
+  Top-level Tests          %d
+  Static Subtests          %d
+  Dynamic Subtest Sites    %d
+
+Benchmarks
+  Known Benchmark Cases    %d
+  Top-level Benchmarks     %d
+  Static Subbenchmarks     %d
+  Dynamic Benchmark Sites  %d
+
+Examples
+  Examples                 %d
+`,
+		knownTestCases,
 		result.Tests.Tests,
+		result.Tests.StaticSubtests,
+		result.Tests.DynamicSubtestSites,
+		knownBenchmarkCases,
 		result.Tests.Benchmarks,
+		result.Tests.StaticSubbenchmarks,
+		result.Tests.DynamicSubbenchmarkSites,
 		result.Tests.Examples,
 	)
 	return err

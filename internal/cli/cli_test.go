@@ -100,12 +100,58 @@ func TestRunPackagesPrintsPackageView(t *testing.T) {
 	}
 }
 
+func TestRunTestsPrintsKnownCaseTotals(t *testing.T) {
+	dir := writeModule(t)
+	writeFile(t, dir, "main_test.go", `package main
+
+import "testing"
+
+func TestOne(t *testing.T) {
+	t.Run("child", func(t *testing.T) {})
+}
+
+func TestTable(t *testing.T) {
+	cases := []struct{ name string }{{"one"}, {"two"}}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {})
+	}
+}
+`)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"tests", dir}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	for _, want := range []string{
+		"Known Test Cases",
+		"Top-level Tests",
+		"Static Subtests",
+		"5",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout = %q, want %q", stdout.String(), want)
+		}
+	}
+}
+
 func writeModule(t *testing.T) string {
 	t.Helper()
 
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/app\n\ngo 1.21\n"), 0o644); err != nil {
+	writeFile(t, dir, "go.mod", "module example.com/app\n\ngo 1.21\n")
+	return dir
+}
+
+func writeFile(t *testing.T, root string, rel string, content string) {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	return dir
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
