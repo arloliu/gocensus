@@ -20,6 +20,15 @@ The default command is `scan`, so this is equivalent:
 gocensus .
 ```
 
+Use `--help` at the root or on a subcommand to see command-specific flags:
+
+```bash
+gocensus --help
+gocensus scan --help
+gocensus tests --help
+gocensus help packages
+```
+
 ### Test Inventory
 
 ```text

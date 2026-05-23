@@ -3,211 +3,216 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"strconv"
-	"strings"
+	"slices"
 
+	"github.com/alecthomas/kong"
 	"github.com/arloliu/gocensus"
 	"github.com/arloliu/gocensus/internal/render"
 )
 
 // Run executes the gocensus command line interface.
-func Run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer, version string) int {
-	if len(args) == 0 {
-		args = []string{"scan", "."}
-	} else if !isCommand(args[0]) {
-		args = append([]string{"scan"}, args...)
-	}
-
-	switch args[0] {
-	case "scan":
-		return runResult(ctx, args[1:], stdout, stderr, "table")
-	case "report":
-		return runResult(ctx, args[1:], stdout, stderr, "markdown")
-	case "packages":
-		return runView(ctx, args[1:], stdout, stderr, "packages")
-	case "files":
-		return runView(ctx, args[1:], stdout, stderr, "files")
-	case "tests":
-		return runView(ctx, args[1:], stdout, stderr, "tests")
-	case "version":
-		_, _ = fmt.Fprintf(stdout, "gocensus %s\n", version)
-		return 0
-	case "help", "-h", "--help":
-		printUsage(stdout)
-		return 0
-	default:
-		_, _ = fmt.Fprintf(stderr, "unknown command %q\n", args[0])
-		printUsage(stderr)
-		return 2
-	}
-}
-
-func runResult(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer, defaultFormat string) int {
-	parsed, err := parseCommonArgs(args, defaultFormat)
-	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "command failed: %v\n", err)
-		return 2
-	}
-
-	result, err := analyze(ctx, parsed)
+func Run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer, version string) (code int) {
+	commandLine := commandLine{}
+	parser, err := kong.New(&commandLine,
+		kong.Name("gocensus"),
+		kong.Description("Analyze Go repositories: files, lines, tests, ratios, and reports."),
+		kong.Writers(stdout, stderr),
+		kong.UsageOnError(),
+		kong.Exit(func(exitCode int) {
+			panic(kongExit(exitCode))
+		}),
+	)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "command failed: %v\n", err)
 		return 1
 	}
 
-	var out bytes.Buffer
-	writer := io.Writer(stdout)
-	if parsed.output != "" {
-		writer = &out
-	}
-	if err := render.Result(writer, result, parsed.format); err != nil {
-		_, _ = fmt.Fprintf(stderr, "render failed: %v\n", err)
-		return 1
-	}
-	if parsed.output != "" {
-		if err := os.WriteFile(parsed.output, out.Bytes(), 0o644); err != nil {
-			_, _ = fmt.Fprintf(stderr, "write failed: %v\n", err)
-			return 1
+	defer func() {
+		recovered := recover()
+		if recovered == nil {
+			return
 		}
-	}
-	return 0
-}
+		exit, ok := recovered.(kongExit)
+		if !ok {
+			panic(recovered)
+		}
+		code = int(exit)
+	}()
 
-func runView(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer, view string) int {
-	parsed, err := parseCommonArgs(args, "table")
+	kongCtx, err := parser.Parse(normalizeHelpArgs(args))
 	if err != nil {
+		var parseErr *kong.ParseError
+		if errors.As(err, &parseErr) {
+			_, _ = fmt.Fprintf(stderr, "command failed: %v\n", err)
+			return 2
+		}
 		_, _ = fmt.Fprintf(stderr, "command failed: %v\n", err)
 		return 2
 	}
 
-	result, err := analyze(ctx, parsed)
-	if err != nil {
+	if err := kongCtx.Run(&runtime{
+		ctx:     ctx,
+		stdout:  stdout,
+		version: version,
+	}); err != nil {
 		_, _ = fmt.Fprintf(stderr, "command failed: %v\n", err)
-		return 1
-	}
-
-	switch view {
-	case "packages":
-		err = renderPackages(stdout, result)
-	case "files":
-		err = renderFiles(stdout, result, parsed.top)
-	case "tests":
-		err = renderTests(stdout, result)
-	}
-	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "render failed: %v\n", err)
 		return 1
 	}
 	return 0
 }
 
-type commonArgs struct {
-	root             string
-	format           string
-	output           string
-	top              int
-	sort             string
-	useGitignore     bool
-	extraExcludes    []string
-	includeGenerated bool
-	includeMocks     bool
+type kongExit int
+
+type runtime struct {
+	ctx     context.Context
+	stdout  io.Writer
+	version string
 }
 
-func parseCommonArgs(args []string, defaultFormat string) (commonArgs, error) {
-	parsed := commonArgs{
-		root:         ".",
-		format:       defaultFormat,
-		top:          20,
-		sort:         "path",
-		useGitignore: true,
-	}
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		switch {
-		case arg == "--format":
-			i++
-			if i >= len(args) {
-				return commonArgs{}, fmt.Errorf("%s requires a value", arg)
-			}
-			parsed.format = args[i]
-		case strings.HasPrefix(arg, "--format="):
-			parsed.format = strings.TrimPrefix(arg, "--format=")
-		case arg == "--output":
-			i++
-			if i >= len(args) {
-				return commonArgs{}, fmt.Errorf("%s requires a value", arg)
-			}
-			parsed.output = args[i]
-		case strings.HasPrefix(arg, "--output="):
-			parsed.output = strings.TrimPrefix(arg, "--output=")
-		case arg == "--top":
-			i++
-			if i >= len(args) {
-				return commonArgs{}, fmt.Errorf("%s requires a value", arg)
-			}
-			top, err := strconv.Atoi(args[i])
-			if err != nil {
-				return commonArgs{}, fmt.Errorf("invalid --top value: %w", err)
-			}
-			parsed.top = top
-		case strings.HasPrefix(arg, "--top="):
-			top, err := strconv.Atoi(strings.TrimPrefix(arg, "--top="))
-			if err != nil {
-				return commonArgs{}, fmt.Errorf("invalid --top value: %w", err)
-			}
-			parsed.top = top
-		case arg == "--sort":
-			i++
-			if i >= len(args) {
-				return commonArgs{}, fmt.Errorf("%s requires a value", arg)
-			}
-			parsed.sort = args[i]
-		case strings.HasPrefix(arg, "--sort="):
-			parsed.sort = strings.TrimPrefix(arg, "--sort=")
-		case arg == "--no-gitignore":
-			parsed.useGitignore = false
-		case arg == "--exclude":
-			i++
-			if i >= len(args) {
-				return commonArgs{}, fmt.Errorf("%s requires a value", arg)
-			}
-			parsed.extraExcludes = append(parsed.extraExcludes, args[i])
-		case strings.HasPrefix(arg, "--exclude="):
-			parsed.extraExcludes = append(parsed.extraExcludes, strings.TrimPrefix(arg, "--exclude="))
-		case arg == "--include-generated":
-			parsed.includeGenerated = true
-		case arg == "--include-mocks":
-			parsed.includeMocks = true
-		case strings.HasPrefix(arg, "-"):
-			return commonArgs{}, fmt.Errorf("unknown flag %q", arg)
-		default:
-			if parsed.root != "." {
-				return commonArgs{}, fmt.Errorf("unexpected argument %q", arg)
-			}
-			parsed.root = arg
-		}
-	}
-	return parsed, nil
+type commandLine struct {
+	analysisFlags `embed:""`
+
+	Scan     scanCmd     `cmd:"" default:"withargs" help:"Repository-level overview."`
+	Report   reportCmd   `cmd:"" help:"Generate a repository report."`
+	Packages packagesCmd `cmd:"" help:"Package-by-package metrics."`
+	Files    filesCmd    `cmd:"" help:"File-by-file metrics."`
+	Tests    testsCmd    `cmd:"" help:"Test/benchmark/example inventory."`
+	Version  versionCmd  `cmd:"" help:"Print version/build info."`
 }
 
-func analyze(ctx context.Context, parsed commonArgs) (gocensus.Result, error) {
+type analysisFlags struct {
+	NoGitignore      bool     `name:"no-gitignore" help:"Do not read .gitignore exclude rules."`
+	ExtraExcludes    []string `name:"exclude" placeholder:"PATTERN" help:"Exclude paths matching pattern; can be repeated."`
+	IncludeGenerated bool     `name:"include-generated" help:"Include generated files in production totals."`
+	IncludeMocks     bool     `name:"include-mocks" help:"Include mock files in production totals."`
+}
+
+type rootArg struct {
+	Root string `arg:"" optional:"" default:"." type:"path" help:"Repository root to analyze."`
+}
+
+type scanCmd struct {
+	rootArg
+	Format string `enum:"table,json,markdown" default:"table" help:"Output format: table, json, or markdown."`
+	Output string `placeholder:"PATH" help:"Write output to file instead of stdout."`
+}
+
+type reportCmd struct {
+	rootArg
+	Format string `enum:"table,json,markdown" default:"markdown" help:"Output format: table, json, or markdown."`
+	Output string `placeholder:"PATH" help:"Write output to file instead of stdout."`
+}
+
+type packagesCmd struct {
+	rootArg
+	Sort string `enum:"path,test-ratio,prod-lines,test-lines" default:"path" help:"Sort packages by path, test-ratio, prod-lines, or test-lines."`
+}
+
+type filesCmd struct {
+	rootArg
+	Top int `default:"20" help:"Maximum number of files to print; use 0 for all files."`
+}
+
+type testsCmd struct {
+	rootArg
+}
+
+type versionCmd struct{}
+
+func (cmd *scanCmd) Run(cli *commandLine, rt *runtime) error {
+	result, err := analyze(rt.ctx, cmd.Root, cli.analysisFlags)
+	if err != nil {
+		return err
+	}
+	return renderResult(rt.stdout, result, cmd.Format, cmd.Output)
+}
+
+func (cmd *reportCmd) Run(cli *commandLine, rt *runtime) error {
+	result, err := analyze(rt.ctx, cmd.Root, cli.analysisFlags)
+	if err != nil {
+		return err
+	}
+	return renderResult(rt.stdout, result, cmd.Format, cmd.Output)
+}
+
+func (cmd *packagesCmd) Run(cli *commandLine, rt *runtime) error {
+	result, err := analyze(rt.ctx, cmd.Root, cli.analysisFlags)
+	if err != nil {
+		return err
+	}
+	return renderPackages(rt.stdout, result, cmd.Sort)
+}
+
+func (cmd *filesCmd) Run(cli *commandLine, rt *runtime) error {
+	result, err := analyze(rt.ctx, cmd.Root, cli.analysisFlags)
+	if err != nil {
+		return err
+	}
+	return renderFiles(rt.stdout, result, cmd.Top)
+}
+
+func (cmd *testsCmd) Run(cli *commandLine, rt *runtime) error {
+	result, err := analyze(rt.ctx, cmd.Root, cli.analysisFlags)
+	if err != nil {
+		return err
+	}
+	return renderTests(rt.stdout, result)
+}
+
+func (cmd *versionCmd) Run(rt *runtime) error {
+	_, err := fmt.Fprintf(rt.stdout, "gocensus %s\n", rt.version)
+	return err
+}
+
+func normalizeHelpArgs(args []string) []string {
+	if len(args) == 0 || args[0] != "help" {
+		return args
+	}
+	if len(args) == 1 {
+		return []string{"--help"}
+	}
+	normalized := slices.Clone(args[1:])
+	normalized = append(normalized, "--help")
+	return normalized
+}
+
+func analyze(ctx context.Context, root string, flags analysisFlags) (gocensus.Result, error) {
 	return gocensus.Analyze(ctx, gocensus.Options{
-		Root:             parsed.root,
-		NoGitignore:      !parsed.useGitignore,
-		ExtraExcludes:    parsed.extraExcludes,
-		IncludeGenerated: parsed.includeGenerated,
-		IncludeMocks:     parsed.includeMocks,
+		Root:             root,
+		NoGitignore:      flags.NoGitignore,
+		ExtraExcludes:    flags.ExtraExcludes,
+		IncludeGenerated: flags.IncludeGenerated,
+		IncludeMocks:     flags.IncludeMocks,
 	})
 }
 
-func renderPackages(w io.Writer, result gocensus.Result) error {
+func renderResult(w io.Writer, result gocensus.Result, format string, output string) error {
+	var out bytes.Buffer
+	writer := w
+	if output != "" {
+		writer = &out
+	}
+	if err := render.Result(writer, result, format); err != nil {
+		return fmt.Errorf("render result: %w", err)
+	}
+	if output != "" {
+		if err := os.WriteFile(output, out.Bytes(), 0o644); err != nil {
+			return fmt.Errorf("write output: %w", err)
+		}
+	}
+	return nil
+}
+
+func renderPackages(w io.Writer, result gocensus.Result, sortBy string) error {
 	if _, err := fmt.Fprintln(w, "Packages"); err != nil {
 		return err
 	}
-	for _, pkg := range result.Packages {
+	packages := sortedPackages(result.Packages, sortBy)
+	for _, pkg := range packages {
 		if _, err := fmt.Fprintf(w, "  %s  prod=%d  test=%d  ratio=%.2f:1\n",
 			pkg.ImportPath,
 			pkg.Lines.Production.Effective,
@@ -218,6 +223,43 @@ func renderPackages(w io.Writer, result gocensus.Result) error {
 		}
 	}
 	return nil
+}
+
+func sortedPackages(packages []gocensus.PackageMetric, sortBy string) []gocensus.PackageMetric {
+	sorted := slices.Clone(packages)
+	slices.SortFunc(sorted, func(a gocensus.PackageMetric, b gocensus.PackageMetric) int {
+		switch sortBy {
+		case "test-ratio":
+			if a.Ratios.TestToProductionEffective > b.Ratios.TestToProductionEffective {
+				return -1
+			}
+			if a.Ratios.TestToProductionEffective < b.Ratios.TestToProductionEffective {
+				return 1
+			}
+		case "prod-lines":
+			if a.Lines.Production.Effective > b.Lines.Production.Effective {
+				return -1
+			}
+			if a.Lines.Production.Effective < b.Lines.Production.Effective {
+				return 1
+			}
+		case "test-lines":
+			if a.Lines.Tests.Effective > b.Lines.Tests.Effective {
+				return -1
+			}
+			if a.Lines.Tests.Effective < b.Lines.Tests.Effective {
+				return 1
+			}
+		}
+		if a.ImportPath < b.ImportPath {
+			return -1
+		}
+		if a.ImportPath > b.ImportPath {
+			return 1
+		}
+		return 0
+	})
+	return sorted
 }
 
 func renderFiles(w io.Writer, result gocensus.Result, top int) error {
@@ -266,25 +308,4 @@ Examples
 		result.Tests.Examples,
 	)
 	return err
-}
-
-func isCommand(arg string) bool {
-	switch arg {
-	case "scan", "packages", "files", "tests", "report", "version", "help", "-h", "--help":
-		return true
-	default:
-		return false
-	}
-}
-
-func printUsage(w io.Writer) {
-	_, _ = fmt.Fprintln(w, "Usage: gocensus <command> [path] [flags]")
-	_, _ = fmt.Fprintln(w)
-	_, _ = fmt.Fprintln(w, "Commands:")
-	_, _ = fmt.Fprintln(w, "  scan      Repository-level overview")
-	_, _ = fmt.Fprintln(w, "  packages  Package-by-package metrics")
-	_, _ = fmt.Fprintln(w, "  files     File-by-file metrics")
-	_, _ = fmt.Fprintln(w, "  tests     Test/benchmark/example inventory")
-	_, _ = fmt.Fprintln(w, "  report    Generate a Markdown report")
-	_, _ = fmt.Fprintln(w, "  version   Print version/build info")
 }
