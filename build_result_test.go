@@ -1,15 +1,12 @@
-package report_test
+package gocensus
 
 import (
 	"reflect"
 	"testing"
-
-	"github.com/arloliu/gocensus"
-	"github.com/arloliu/gocensus/internal/report"
 )
 
-func TestBuildAggregatesRepoAndPackageMetrics(t *testing.T) {
-	files := []gocensus.FileMetric{
+func TestBuildResultAggregatesRepoAndPackageMetrics(t *testing.T) {
+	files := []FileMetric{
 		{Path: "main.go", Package: "main", Kind: "production", RawLines: 10, CodeLines: 8},
 		{
 			Path:                     "main_test.go",
@@ -28,11 +25,7 @@ func TestBuildAggregatesRepoAndPackageMetrics(t *testing.T) {
 		{Path: "service.pb.go", Package: "main", Kind: "generated", RawLines: 20, CodeLines: 18},
 	}
 
-	result := report.Build(report.Input{
-		Root:        "/repo",
-		ModulePath:  "example.com/app",
-		FileMetrics: files,
-	})
+	result := buildResult("/repo", "example.com/app", files)
 
 	if result.Files.Total != 4 {
 		t.Fatalf("Files.Total = %d, want 4", result.Files.Total)
