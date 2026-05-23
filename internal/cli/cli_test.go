@@ -65,17 +65,38 @@ func TestRunVersion(t *testing.T) {
 	}
 }
 
-func TestRunPlannedCommand(t *testing.T) {
+func TestRunReportWritesMarkdownFile(t *testing.T) {
+	dir := writeModule(t)
+	output := filepath.Join(t.TempDir(), "census.md")
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	code := cli.Run(context.Background(), []string{"packages", "."}, &stdout, &stderr, "dev")
+	code := cli.Run(context.Background(), []string{"report", dir, "--output", output}, &stdout, &stderr, "dev")
 
-	if code != 2 {
-		t.Fatalf("Run exit code = %d, want 2", code)
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "planned but not implemented") {
-		t.Fatalf("stderr = %q, want planned command message", stderr.String())
+	content, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(content), "# Go Census: example.com/app") {
+		t.Fatalf("report content = %q", string(content))
+	}
+}
+
+func TestRunPackagesPrintsPackageView(t *testing.T) {
+	dir := writeModule(t)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"packages", dir}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Packages") {
+		t.Fatalf("stdout = %q, want package view", stdout.String())
 	}
 }
 
