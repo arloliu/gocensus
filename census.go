@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/arloliu/gocensus/internal/classify"
@@ -197,6 +198,15 @@ func buildResult(root string, modulePath string, fileMetrics []FileMetric) Resul
 		pkg.Ratios = ratios(pkg.Lines)
 		result.Packages = append(result.Packages, *pkg)
 	}
+	slices.SortFunc(result.Packages, func(a, b PackageMetric) int {
+		if a.ImportPath < b.ImportPath {
+			return -1
+		}
+		if a.ImportPath > b.ImportPath {
+			return 1
+		}
+		return 0
+	})
 	return result
 }
 
