@@ -5,105 +5,115 @@ import (
 	"io"
 
 	"github.com/arloliu/gocensus"
+	"github.com/arloliu/gocensus/internal/color"
 )
 
-func table(w io.Writer, result gocensus.Result) error {
+func table(w io.Writer, result gocensus.Result, style color.Style) error {
 	totalRaw := result.Lines.Production.Raw + result.Lines.Tests.Raw
 	totalEffective := result.Lines.Production.Effective + result.Lines.Tests.Effective
 	knownTestCases := result.Tests.Tests + result.Tests.StaticSubtests
 	knownBenchmarkCases := result.Tests.Benchmarks + result.Tests.StaticSubbenchmarks
 
-	if _, err := fmt.Fprintf(w, "Go Census: %s\n", displayName(result)); err != nil {
+	if _, err := fmt.Fprintf(w, "%s: %s\n", style.Title("Go Census"), displayName(result)); err != nil {
 		return err
 	}
 	if result.Scope != "" {
-		if _, err := fmt.Fprintf(w, "Scope: %s\n", result.Scope); err != nil {
+		if _, err := fmt.Fprintf(w, "%s: %s\n", style.Label("Scope"), result.Scope); err != nil {
 			return err
 		}
 	}
 	if _, err := fmt.Fprintln(w); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "Overview\n  Go files: %s    Packages: %s    Known test cases: %s\n\n",
-		formatInt(result.Files.Total),
-		formatInt(len(result.Packages)),
-		formatInt(knownTestCases),
+	if _, err := fmt.Fprintf(w, "%s\n  %s: %s    %s: %s    %s: %s\n\n",
+		style.Section("Overview"),
+		style.Label("Go files"),
+		style.Metric(formatInt(result.Files.Total)),
+		style.Label("Packages"),
+		style.Metric(formatInt(len(result.Packages))),
+		style.Label("Known test cases"),
+		style.Metric(formatInt(knownTestCases)),
 	); err != nil {
 		return err
 	}
 
-	if _, err := fmt.Fprintln(w, "Code Mix"); err != nil {
+	if _, err := fmt.Fprintln(w, style.Section("Code Mix")); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(w, "  Kind                 Files   Raw Lines   Effective Lines"); err != nil {
+	if _, err := fmt.Fprintf(w, "  %s%s   %s   %s\n",
+		style.Header(fmt.Sprintf("%-21s", "Kind")),
+		style.Header(fmt.Sprintf("%5s", "Files")),
+		style.Header(fmt.Sprintf("%9s", "Raw Lines")),
+		style.Header(fmt.Sprintf("%15s", "Effective Lines")),
+	); err != nil {
 		return err
 	}
-	if err := codeMixRow(w, "Production Scope", result.Files.Production, result.Lines.Production.Raw, result.Lines.Production.Effective); err != nil {
+	if err := codeMixRow(w, style, "Production Scope", result.Files.Production, result.Lines.Production.Raw, result.Lines.Production.Effective, codeMixPrimary); err != nil {
 		return err
 	}
-	if err := codeMixRow(w, "Tests", result.Files.Tests, result.Lines.Tests.Raw, result.Lines.Tests.Effective); err != nil {
+	if err := codeMixRow(w, style, "Tests", result.Files.Tests, result.Lines.Tests.Raw, result.Lines.Tests.Effective, codeMixMetric); err != nil {
 		return err
 	}
-	if err := codeMixRow(w, "Excluded Generated", result.Files.Generated, result.Lines.Generated.Raw, result.Lines.Generated.Effective); err != nil {
+	if err := codeMixRow(w, style, "Excluded Generated", result.Files.Generated, result.Lines.Generated.Raw, result.Lines.Generated.Effective, codeMixWarn); err != nil {
 		return err
 	}
-	if err := codeMixRow(w, "Excluded Mocks", result.Files.Mocks, result.Lines.Mocks.Raw, result.Lines.Mocks.Effective); err != nil {
+	if err := codeMixRow(w, style, "Excluded Mocks", result.Files.Mocks, result.Lines.Mocks.Raw, result.Lines.Mocks.Effective, codeMixWarn); err != nil {
 		return err
 	}
-	if err := codeMixRow(w, "Total", result.Files.Total, totalRaw, totalEffective); err != nil {
-		return err
-	}
-
-	if _, err := fmt.Fprintln(w); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintln(w, "Ratios"); err != nil {
-		return err
-	}
-	if err := ratioRow(w, "Test / Production Scope", ratio(result.Ratios.TestToProductionEffective)); err != nil {
-		return err
-	}
-	if err := ratioRow(w, "Test Share", pct(result.Ratios.TestShareEffective)); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintln(w); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintln(w, "Test Inventory"); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Known Test Cases", formatInt(knownTestCases)); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Top-level Tests", formatInt(result.Tests.Tests)); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Static Subtests", formatInt(result.Tests.StaticSubtests)); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Dynamic Subtest Sites", formatInt(result.Tests.DynamicSubtestSites)); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Known Benchmark Cases", formatInt(knownBenchmarkCases)); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Benchmarks", formatInt(result.Tests.Benchmarks)); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Static Subbenchmarks", formatInt(result.Tests.StaticSubbenchmarks)); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Dynamic Benchmark Sites", formatInt(result.Tests.DynamicSubbenchmarkSites)); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "  %-23s%3s\n", "Examples", formatInt(result.Tests.Examples)); err != nil {
+	if err := codeMixRow(w, style, "Total", result.Files.Total, totalRaw, totalEffective, codeMixMetric); err != nil {
 		return err
 	}
 
 	if _, err := fmt.Fprintln(w); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(w, "Notes"); err != nil {
+	if _, err := fmt.Fprintln(w, style.Section("Ratios")); err != nil {
+		return err
+	}
+	if err := ratioRow(w, style, "Test / Production Scope", ratio(result.Ratios.TestToProductionEffective)); err != nil {
+		return err
+	}
+	if err := ratioRow(w, style, "Test Share", pct(result.Ratios.TestShareEffective)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, style.Section("Test Inventory")); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %s%s\n", style.Label(fmt.Sprintf("%-23s", "Known Test Cases")), style.Metric(fmt.Sprintf("%3s", formatInt(knownTestCases)))); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %s%s\n", style.Label(fmt.Sprintf("%-23s", "Top-level Tests")), style.Metric(fmt.Sprintf("%3s", formatInt(result.Tests.Tests)))); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %s%s\n", style.Label(fmt.Sprintf("%-23s", "Static Subtests")), style.Metric(fmt.Sprintf("%3s", formatInt(result.Tests.StaticSubtests)))); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %s%s\n", style.Label(fmt.Sprintf("%-23s", "Dynamic Subtest Sites")), style.Metric(fmt.Sprintf("%3s", formatInt(result.Tests.DynamicSubtestSites)))); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %s%s\n", style.Label(fmt.Sprintf("%-23s", "Known Benchmark Cases")), style.Metric(fmt.Sprintf("%3s", formatInt(knownBenchmarkCases)))); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %s%s\n", style.Label(fmt.Sprintf("%-23s", "Benchmarks")), style.Metric(fmt.Sprintf("%3s", formatInt(result.Tests.Benchmarks)))); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %s%s\n", style.Label(fmt.Sprintf("%-23s", "Static Subbenchmarks")), style.Metric(fmt.Sprintf("%3s", formatInt(result.Tests.StaticSubbenchmarks)))); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %s%s\n", style.Label(fmt.Sprintf("%-23s", "Dynamic Benchmark Sites")), style.Metric(fmt.Sprintf("%3s", formatInt(result.Tests.DynamicSubbenchmarkSites)))); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "  %s%s\n", style.Label(fmt.Sprintf("%-23s", "Examples")), style.Metric(fmt.Sprintf("%3s", formatInt(result.Tests.Examples)))); err != nil {
+		return err
+	}
+
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, style.Section("Notes")); err != nil {
 		return err
 	}
 	notes := []struct {
@@ -121,24 +131,48 @@ func table(w io.Writer, result gocensus.Result) error {
 		{field: "Excluded Mocks", text: "Mock/support files not counted in production scope."},
 	}
 	for _, note := range notes {
-		if _, err := fmt.Fprintf(w, "  %-20s %s\n", note.field, note.text); err != nil {
+		if _, err := fmt.Fprintf(w, "  %s %s\n", style.Muted(fmt.Sprintf("%-20s", note.field)), style.Muted(note.text)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func codeMixRow(w io.Writer, kind string, files int, raw int, effective int) error {
-	_, err := fmt.Fprintf(w, "  %-20s%5s   %9s   %15s\n",
-		kind,
-		formatInt(files),
-		formatInt(raw),
-		formatInt(effective),
-	)
+type codeMixStyle int
+
+const (
+	codeMixPrimary codeMixStyle = iota
+	codeMixMetric
+	codeMixWarn
+)
+
+func codeMixRow(w io.Writer, style color.Style, kind string, files int, raw int, effective int, rowStyle codeMixStyle) error {
+	kindText := fmt.Sprintf("%-20s", kind)
+	filesText := fmt.Sprintf("%5s", formatInt(files))
+	rawText := fmt.Sprintf("%9s", formatInt(raw))
+	effectiveText := fmt.Sprintf("%15s", formatInt(effective))
+	switch rowStyle {
+	case codeMixPrimary:
+		kindText = style.Label(kindText)
+		filesText = style.Metric(filesText)
+		rawText = style.Metric(rawText)
+		effectiveText = style.Metric(effectiveText)
+	case codeMixWarn:
+		kindText = style.Warn(kindText)
+		filesText = style.Warn(filesText)
+		rawText = style.Warn(rawText)
+		effectiveText = style.Warn(effectiveText)
+	default:
+		kindText = style.Header(kindText)
+		filesText = style.Metric(filesText)
+		rawText = style.Metric(rawText)
+		effectiveText = style.Metric(effectiveText)
+	}
+	_, err := fmt.Fprintf(w, "  %s%s   %s   %s\n", kindText, filesText, rawText, effectiveText)
 	return err
 }
 
-func ratioRow(w io.Writer, label string, value string) error {
-	_, err := fmt.Fprintf(w, "  %-28s %7s\n", label, value)
+func ratioRow(w io.Writer, style color.Style, label string, value string) error {
+	_, err := fmt.Fprintf(w, "  %s %s\n", style.Label(fmt.Sprintf("%-28s", label)), style.Metric(fmt.Sprintf("%7s", value)))
 	return err
 }

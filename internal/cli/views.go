@@ -8,16 +8,20 @@ import (
 	"slices"
 
 	"github.com/arloliu/gocensus"
+	"github.com/arloliu/gocensus/internal/color"
 	"github.com/arloliu/gocensus/internal/render"
 )
 
-func renderResult(w io.Writer, result gocensus.Result, format string, output string) error {
+func renderResult(w io.Writer, result gocensus.Result, format string, output string, style color.Style) error {
 	var out bytes.Buffer
 	writer := w
 	if output != "" {
 		writer = &out
 	}
-	if err := render.Result(writer, result, format); err != nil {
+	if output != "" || format != "table" {
+		style = color.Plain()
+	}
+	if err := render.ResultWithOptions(writer, result, format, render.Options{Style: style}); err != nil {
 		return fmt.Errorf("render result: %w", err)
 	}
 	if output != "" {
@@ -28,17 +32,20 @@ func renderResult(w io.Writer, result gocensus.Result, format string, output str
 	return nil
 }
 
-func renderPackages(w io.Writer, result gocensus.Result, sortBy string) error {
-	if _, err := fmt.Fprintln(w, "Packages"); err != nil {
+func renderPackages(w io.Writer, result gocensus.Result, sortBy string, style color.Style) error {
+	if _, err := fmt.Fprintln(w, style.Section("Packages")); err != nil {
 		return err
 	}
 	packages := sortedPackages(result.Packages, sortBy)
 	for _, pkg := range packages {
-		if _, err := fmt.Fprintf(w, "  %s  prod=%d  test=%d  ratio=%.2f:1\n",
-			pkg.ImportPath,
-			pkg.Lines.Production.Effective,
-			pkg.Lines.Tests.Effective,
-			pkg.Ratios.TestToProductionEffective,
+		if _, err := fmt.Fprintf(w, "  %s  %s=%s  %s=%s  %s=%s\n",
+			style.Label(pkg.ImportPath),
+			style.Muted("prod"),
+			style.Metric(fmt.Sprintf("%d", pkg.Lines.Production.Effective)),
+			style.Muted("test"),
+			style.Metric(fmt.Sprintf("%d", pkg.Lines.Tests.Effective)),
+			style.Muted("ratio"),
+			style.Metric(fmt.Sprintf("%.2f:1", pkg.Ratios.TestToProductionEffective)),
 		); err != nil {
 			return err
 		}
@@ -83,26 +90,38 @@ func sortedPackages(packages []gocensus.PackageMetric, sortBy string) []gocensus
 	return sorted
 }
 
-func renderFiles(w io.Writer, result gocensus.Result, top int) error {
-	if _, err := fmt.Fprintln(w, "Files"); err != nil {
+func renderFiles(w io.Writer, result gocensus.Result, top int, style color.Style) error {
+	if _, err := fmt.Fprintln(w, style.Section("Files")); err != nil {
 		return err
 	}
 	for i, file := range result.FileMetrics {
 		if top > 0 && i >= top {
 			break
 		}
-		if _, err := fmt.Fprintf(w, "  %s  %s  raw=%d  effective=%d\n",
-			file.Path, file.Kind, file.RawLines, file.CodeLines); err != nil {
+		kind := style.Label(file.Kind)
+		if file.Generated || file.Kind == "generated" || file.Kind == "mock" {
+			kind = style.Warn(file.Kind)
+		}
+		if _, err := fmt.Fprintf(w, "  %s  %s  %s=%s  %s=%s\n",
+			style.Label(file.Path),
+			kind,
+			style.Muted("raw"),
+			style.Metric(fmt.Sprintf("%d", file.RawLines)),
+			style.Muted("effective"),
+			style.Metric(fmt.Sprintf("%d", file.CodeLines))); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func renderTests(w io.Writer, result gocensus.Result) error {
+func renderTests(w io.Writer, result gocensus.Result, style color.Style) error {
 	knownTestCases := result.Tests.Tests + result.Tests.StaticSubtests
 	knownBenchmarkCases := result.Tests.Benchmarks + result.Tests.StaticSubbenchmarks
 
+	if style.Level() != color.LevelPlain {
+		return renderTestsColored(w, result, style, knownTestCases, knownBenchmarkCases)
+	}
 	_, err := fmt.Fprintf(w, `Tests
   Known Test Cases         %d
   Top-level Tests          %d
@@ -127,6 +146,47 @@ Examples
 		result.Tests.StaticSubbenchmarks,
 		result.Tests.DynamicSubbenchmarkSites,
 		result.Tests.Examples,
+	)
+	return err
+}
+
+func renderTestsColored(w io.Writer, result gocensus.Result, style color.Style, knownTestCases int, knownBenchmarkCases int) error {
+	_, err := fmt.Fprintf(w, `%s
+  %s         %s
+  %s          %s
+  %s          %s
+  %s    %s
+
+%s
+  %s    %s
+  %s     %s
+  %s     %s
+  %s  %s
+
+%s
+  %s                 %s
+`,
+		style.Section("Tests"),
+		style.Label("Known Test Cases"),
+		style.Metric(fmt.Sprintf("%d", knownTestCases)),
+		style.Label("Top-level Tests"),
+		style.Metric(fmt.Sprintf("%d", result.Tests.Tests)),
+		style.Label("Static Subtests"),
+		style.Metric(fmt.Sprintf("%d", result.Tests.StaticSubtests)),
+		style.Label("Dynamic Subtest Sites"),
+		style.Metric(fmt.Sprintf("%d", result.Tests.DynamicSubtestSites)),
+		style.Section("Benchmarks"),
+		style.Label("Known Benchmark Cases"),
+		style.Metric(fmt.Sprintf("%d", knownBenchmarkCases)),
+		style.Label("Top-level Benchmarks"),
+		style.Metric(fmt.Sprintf("%d", result.Tests.Benchmarks)),
+		style.Label("Static Subbenchmarks"),
+		style.Metric(fmt.Sprintf("%d", result.Tests.StaticSubbenchmarks)),
+		style.Label("Dynamic Benchmark Sites"),
+		style.Metric(fmt.Sprintf("%d", result.Tests.DynamicSubbenchmarkSites)),
+		style.Section("Examples"),
+		style.Label("Examples"),
+		style.Metric(fmt.Sprintf("%d", result.Tests.Examples)),
 	)
 	return err
 }

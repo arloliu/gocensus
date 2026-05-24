@@ -9,18 +9,22 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/arloliu/gocensus/internal/color"
 	"github.com/arloliu/gocensus/internal/contrib"
 )
 
-func renderWho(w io.Writer, report contrib.Report, sortBy string, format string, output string) error {
+func renderWho(w io.Writer, report contrib.Report, sortBy string, format string, output string, style color.Style) error {
 	var out bytes.Buffer
 	writer := w
 	if output != "" {
 		writer = &out
 	}
+	if output != "" || format != "table" {
+		style = color.Plain()
+	}
 	switch format {
 	case "table":
-		if err := renderWhoTable(writer, report, sortBy); err != nil {
+		if err := renderWhoTable(writer, report, sortBy, style); err != nil {
 			return err
 		}
 	case "json":
@@ -44,24 +48,24 @@ func renderWho(w io.Writer, report contrib.Report, sortBy string, format string,
 	return nil
 }
 
-func renderWhoTable(w io.Writer, report contrib.Report, sortBy string) error {
-	if _, err := fmt.Fprintf(w, "Who: %s\n", report.Root); err != nil {
+func renderWhoTable(w io.Writer, report contrib.Report, sortBy string, style color.Style) error {
+	if _, err := fmt.Fprintf(w, "%s: %s\n", style.Title("Who"), report.Root); err != nil {
 		return err
 	}
 	if report.Scope != "" {
-		if _, err := fmt.Fprintf(w, "Scope: %s\n", report.Scope); err != nil {
+		if _, err := fmt.Fprintf(w, "%s: %s\n", style.Label("Scope"), report.Scope); err != nil {
 			return err
 		}
 	}
-	if _, err := fmt.Fprintf(w, "Sorted by: %s\n\n", sortBy); err != nil {
+	if _, err := fmt.Fprintf(w, "%s: %s\n\n", style.Label("Sorted by"), style.Metric(sortBy)); err != nil {
 		return err
 	}
 
 	table := textTable{
 		Indent:  "  ",
 		Gap:     "  ",
-		Columns: whoTableColumns(),
-		Rows:    whoRows(report.Contributors),
+		Columns: whoTableColumns(style),
+		Rows:    whoRows(report.Contributors, style),
 	}
 	if err := renderTextTable(w, table); err != nil {
 		return err
@@ -70,11 +74,11 @@ func renderWhoTable(w io.Writer, report contrib.Report, sortBy string) error {
 		if _, err := fmt.Fprintln(w); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintln(w, "Notes:"); err != nil {
+		if _, err := fmt.Fprintln(w, style.Section("Notes:")); err != nil {
 			return err
 		}
 		for _, note := range report.Notes {
-			if _, err := fmt.Fprintf(w, "  %s\n", displayWhoNote(note)); err != nil {
+			if _, err := fmt.Fprintf(w, "  %s\n", style.Muted(displayWhoNote(note))); err != nil {
 				return err
 			}
 		}
@@ -130,40 +134,48 @@ func renderWhoMarkdown(w io.Writer, report contrib.Report, sortBy string) error 
 	return nil
 }
 
-func whoTableColumns() []tableColumn {
+func whoTableColumns(style color.Style) []tableColumn {
 	return []tableColumn{
-		{Header: "Author", Align: tableAlignLeft},
-		{Header: "Commits", Align: tableAlignRight},
-		{Header: "Feat", Align: tableAlignRight},
-		{Header: "Fix", Align: tableAlignRight},
-		{Header: "Refactor", Align: tableAlignRight},
-		{Header: "Added", Align: tableAlignRight},
-		{Header: "Removed", Align: tableAlignRight},
-		{Header: "Net", Align: tableAlignRight},
-		{Header: "Churn", Align: tableAlignRight},
-		{Header: "Files", Align: tableAlignRight},
-		{Header: "Active Days", Align: tableAlignRight},
+		{Header: style.Header("Author"), Align: tableAlignLeft},
+		{Header: style.Header("Commits"), Align: tableAlignRight},
+		{Header: style.Header("Feat"), Align: tableAlignRight},
+		{Header: style.Header("Fix"), Align: tableAlignRight},
+		{Header: style.Header("Refactor"), Align: tableAlignRight},
+		{Header: style.Header("Added"), Align: tableAlignRight},
+		{Header: style.Header("Removed"), Align: tableAlignRight},
+		{Header: style.Header("Net"), Align: tableAlignRight},
+		{Header: style.Header("Churn"), Align: tableAlignRight},
+		{Header: style.Header("Files"), Align: tableAlignRight},
+		{Header: style.Header("Active Days"), Align: tableAlignRight},
 	}
 }
 
-func whoRows(contributors []contrib.Contributor) [][]string {
+func whoRows(contributors []contrib.Contributor, style color.Style) [][]string {
 	rows := make([][]string, 0, len(contributors))
 	for _, contributor := range contributors {
 		rows = append(rows, []string{
-			contributor.Name,
-			formatWhoInt(contributor.Commits),
-			formatWhoInt(contributor.Features),
-			formatWhoInt(contributor.Fixes),
-			formatWhoInt(contributor.Refactors),
-			formatWhoInt(contributor.Added),
-			formatWhoInt(contributor.Removed),
-			formatWhoInt(contributor.Net),
-			formatWhoInt(contributor.Churn),
-			formatWhoInt(contributor.Files),
-			formatWhoInt(contributor.ActiveDays),
+			style.Label(contributor.Name),
+			style.Metric(formatWhoInt(contributor.Commits)),
+			style.Metric(formatWhoInt(contributor.Features)),
+			style.Metric(formatWhoInt(contributor.Fixes)),
+			style.Metric(formatWhoInt(contributor.Refactors)),
+			style.Metric(formatWhoInt(contributor.Added)),
+			style.Warn(formatWhoInt(contributor.Removed)),
+			styleNet(contributor.Net, style),
+			style.Metric(formatWhoInt(contributor.Churn)),
+			style.Metric(formatWhoInt(contributor.Files)),
+			style.Metric(formatWhoInt(contributor.ActiveDays)),
 		})
 	}
 	return rows
+}
+
+func styleNet(value int, style color.Style) string {
+	text := formatWhoInt(value)
+	if value < 0 {
+		return style.Bad(text)
+	}
+	return style.Metric(text)
 }
 
 func formatWhoInt(value int) string {

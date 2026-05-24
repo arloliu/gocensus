@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/arloliu/gocensus/internal/color"
 	"github.com/arloliu/gocensus/internal/contrib"
 )
 
@@ -46,7 +47,7 @@ func TestRenderWhoTableAlignsWideNumbers(t *testing.T) {
 	}
 	var out bytes.Buffer
 
-	if err := renderWhoTable(&out, report, "commits"); err != nil {
+	if err := renderWhoTable(&out, report, "commits", color.Plain()); err != nil {
 		t.Fatal(err)
 	}
 

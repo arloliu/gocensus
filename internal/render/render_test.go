@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/arloliu/gocensus"
+	"github.com/arloliu/gocensus/internal/color"
 	"github.com/arloliu/gocensus/internal/render"
 )
 
@@ -58,6 +59,43 @@ Notes
 `
 	if out.String() != want {
 		t.Fatalf("table output mismatch\nwant:\n%s\ngot:\n%s", want, out.String())
+	}
+}
+
+func TestTablePlainOutputContainsNoSGR(t *testing.T) {
+	var out bytes.Buffer
+	err := render.Result(&out, sample(), "table")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "\x1b[") {
+		t.Fatalf("plain table output contains SGR: %q", out.String())
+	}
+}
+
+func TestTableCanRenderRGBColor(t *testing.T) {
+	var out bytes.Buffer
+	err := render.ResultWithOptions(&out, sample(), "table", render.Options{Style: color.RGB()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	if !strings.Contains(text, "\x1b[38;2;") {
+		t.Fatalf("colored table output missing RGB SGR: %q", text)
+	}
+	if !strings.Contains(text, "Go Census") {
+		t.Fatalf("colored table output missing title: %q", text)
+	}
+}
+
+func TestJSONIgnoresColorOptions(t *testing.T) {
+	var out bytes.Buffer
+	err := render.ResultWithOptions(&out, sample(), "json", render.Options{Style: color.RGB()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "\x1b[") {
+		t.Fatalf("json output contains SGR: %q", out.String())
 	}
 }
 

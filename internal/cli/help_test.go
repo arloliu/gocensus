@@ -25,6 +25,8 @@ func TestRunRootHelpIncludesCommandsAndCommonFlags(t *testing.T) {
 		"--no-gitignore",
 		"-x, --exclude",
 		"--include-generated",
+		"--color",
+		"--no-color",
 		"production, test, generated, and mock code",
 	} {
 		if !strings.Contains(stdout.String(), want) {
@@ -48,6 +50,8 @@ func TestRunSubcommandHelpIncludesCommandFlags(t *testing.T) {
 		"--format",
 		"--output",
 		"--exclude",
+		"--color",
+		"--no-color",
 		"-f, --format",
 		"-o, --output",
 		"known test cases",

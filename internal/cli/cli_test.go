@@ -51,6 +51,51 @@ func TestRunScanJSON(t *testing.T) {
 	}
 }
 
+func TestRunScanColorAlwaysPrintsSGR(t *testing.T) {
+	dir := writeModule(t)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"scan", dir, "--color", "always"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\x1b[38;2;") {
+		t.Fatalf("stdout = %q, want RGB SGR", stdout.String())
+	}
+}
+
+func TestRunScanNoColorSuppressesSGR(t *testing.T) {
+	dir := writeModule(t)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"scan", dir, "--color", "always", "--no-color"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	if strings.Contains(stdout.String(), "\x1b[") {
+		t.Fatalf("stdout = %q, want no SGR", stdout.String())
+	}
+}
+
+func TestRunScanJSONIgnoresColor(t *testing.T) {
+	dir := writeModule(t)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"scan", dir, "--format", "json", "--color", "always"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	if strings.Contains(stdout.String(), "\x1b[") {
+		t.Fatalf("stdout = %q, want no SGR", stdout.String())
+	}
+}
+
 func TestRunScanAcceptsShortFormatFlag(t *testing.T) {
 	dir := writeModule(t)
 	var stdout bytes.Buffer
@@ -89,6 +134,26 @@ func TestRunReportAcceptsShortOutputFlag(t *testing.T) {
 	}
 	if !strings.Contains(string(content), "# Go Census: example.com/app") {
 		t.Fatalf("report content = %q", string(content))
+	}
+}
+
+func TestRunReportTableOutputFileIgnoresColor(t *testing.T) {
+	dir := writeModule(t)
+	output := filepath.Join(t.TempDir(), "census.txt")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"report", dir, "--format", "table", "--color", "always", "--output", output}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	content, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(content), "\x1b[") {
+		t.Fatalf("report content = %q, want no SGR", string(content))
 	}
 }
 

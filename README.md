@@ -175,6 +175,8 @@ gocensus scan . -f markdown
 gocensus report . -f markdown -o census.md
 ```
 
+Human-readable terminal output uses color automatically when the terminal advertises color support. Use `--color always` to force RGB color, `--color never` or `--no-color` to disable it, and `--color auto` to keep the default detection behavior. JSON, Markdown, and files written with `--output` stay plain.
+
 ## Ignore and Bucket Options
 
 `gocensus` reads `.gitignore` by default.

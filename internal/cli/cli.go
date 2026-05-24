@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"slices"
 
 	"github.com/alecthomas/kong"
@@ -53,6 +54,7 @@ func Run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer,
 	if err := kongCtx.Run(&runtime{
 		ctx:     ctx,
 		stdout:  stdout,
+		environ: os.Environ(),
 		version: version,
 	}); err != nil {
 		_, _ = fmt.Fprintf(stderr, "command failed: %v\n", err)
@@ -66,6 +68,7 @@ type kongExit int
 type runtime struct {
 	ctx     context.Context
 	stdout  io.Writer
+	environ []string
 	version string
 }
 

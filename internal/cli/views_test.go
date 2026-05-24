@@ -42,6 +42,21 @@ func TestRunPackagesPrintsPackageView(t *testing.T) {
 	}
 }
 
+func TestRunPackagesColorAlwaysPrintsSGR(t *testing.T) {
+	dir := writeModule(t)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"packages", dir, "--color", "always"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\x1b[38;2;") {
+		t.Fatalf("stdout = %q, want RGB SGR", stdout.String())
+	}
+}
+
 func TestRunPackagesSortsByProductionLines(t *testing.T) {
 	dir := writeModule(t)
 	writeFile(t, dir, "small/small.go", `package small
@@ -124,6 +139,22 @@ func TestRunFilesAcceptsShortTopFlag(t *testing.T) {
 	}
 }
 
+func TestRunFilesColorAlwaysPrintsSGR(t *testing.T) {
+	dir := writeModule(t)
+	writeFile(t, dir, "one.go", "package main\n")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"files", dir, "--color", "always"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\x1b[38;2;") {
+		t.Fatalf("stdout = %q, want RGB SGR", stdout.String())
+	}
+}
+
 func TestRunTestsPrintsKnownCaseTotals(t *testing.T) {
 	dir := writeModule(t)
 	writeFile(t, dir, "main_test.go", `package main
@@ -161,6 +192,21 @@ func TestTable(t *testing.T) {
 	}
 }
 
+func TestRunTestsColorAlwaysPrintsSGR(t *testing.T) {
+	dir := writeModule(t)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"tests", dir, "--color", "always"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\x1b[38;2;") {
+		t.Fatalf("stdout = %q, want RGB SGR", stdout.String())
+	}
+}
+
 func TestRunWhoRanksContributorsByRemovedLines(t *testing.T) {
 	dir := writeGitRepo(t)
 	writeFile(t, dir, "app.txt", "one\ntwo\nthree\n")
@@ -190,6 +236,24 @@ func TestRunWhoRanksContributorsByRemovedLines(t *testing.T) {
 	}
 	if bobIndex > aliceIndex {
 		t.Fatalf("stdout = %q, want Bob before Alice", output)
+	}
+}
+
+func TestRunWhoColorAlwaysPrintsSGR(t *testing.T) {
+	dir := writeGitRepo(t)
+	writeFile(t, dir, "app.txt", "one\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Alice", "alice@example.com", "2026-01-03T12:00:00Z", "feat: add app")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"who", dir, "--color", "always"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\x1b[38;2;") {
+		t.Fatalf("stdout = %q, want RGB SGR", stdout.String())
 	}
 }
 

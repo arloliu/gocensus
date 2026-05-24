@@ -4,11 +4,15 @@ import (
 	"fmt"
 
 	"github.com/arloliu/gocensus"
+	"github.com/arloliu/gocensus/internal/color"
 	"github.com/arloliu/gocensus/internal/contrib"
 )
 
 type commandLine struct {
 	analysisFlags `embed:""`
+
+	Color   string `name:"color" enum:"auto,always,never" default:"auto" help:"Control terminal colors: auto, always, or never."`
+	NoColor bool   `name:"no-color" help:"Disable terminal colors."`
 
 	Scan     scanCmd     `cmd:"" default:"withargs" help:"Print the main repository census."`
 	Report   reportCmd   `cmd:"" help:"Write a repository report."`
@@ -102,7 +106,7 @@ func (cmd *scanCmd) Run(cli *commandLine, rt *runtime) error {
 	if err != nil {
 		return err
 	}
-	return renderResult(rt.stdout, result, cmd.Format, cmd.Output)
+	return renderResult(rt.stdout, result, cmd.Format, cmd.Output, cli.style(rt))
 }
 
 func (cmd *reportCmd) Run(cli *commandLine, rt *runtime) error {
@@ -110,7 +114,7 @@ func (cmd *reportCmd) Run(cli *commandLine, rt *runtime) error {
 	if err != nil {
 		return err
 	}
-	return renderResult(rt.stdout, result, cmd.Format, cmd.Output)
+	return renderResult(rt.stdout, result, cmd.Format, cmd.Output, cli.style(rt))
 }
 
 func (cmd *packagesCmd) Run(cli *commandLine, rt *runtime) error {
@@ -118,7 +122,7 @@ func (cmd *packagesCmd) Run(cli *commandLine, rt *runtime) error {
 	if err != nil {
 		return err
 	}
-	return renderPackages(rt.stdout, result, cmd.Sort)
+	return renderPackages(rt.stdout, result, cmd.Sort, cli.style(rt))
 }
 
 func (cmd *filesCmd) Run(cli *commandLine, rt *runtime) error {
@@ -126,7 +130,7 @@ func (cmd *filesCmd) Run(cli *commandLine, rt *runtime) error {
 	if err != nil {
 		return err
 	}
-	return renderFiles(rt.stdout, result, cmd.Top)
+	return renderFiles(rt.stdout, result, cmd.Top, cli.style(rt))
 }
 
 func (cmd *testsCmd) Run(cli *commandLine, rt *runtime) error {
@@ -134,7 +138,7 @@ func (cmd *testsCmd) Run(cli *commandLine, rt *runtime) error {
 	if err != nil {
 		return err
 	}
-	return renderTests(rt.stdout, result)
+	return renderTests(rt.stdout, result, cli.style(rt))
 }
 
 func (cmd *whoCmd) Run(cli *commandLine, rt *runtime) error {
@@ -157,12 +161,20 @@ func (cmd *whoCmd) Run(cli *commandLine, rt *runtime) error {
 		return err
 	}
 	report.Contributors = ranked
-	return renderWho(rt.stdout, report, cmd.By, cmd.Format, cmd.Output)
+	return renderWho(rt.stdout, report, cmd.By, cmd.Format, cmd.Output, cli.style(rt))
 }
 
 func (cmd *versionCmd) Run(rt *runtime) error {
 	_, err := fmt.Fprintf(rt.stdout, "gocensus %s\n", rt.version)
 	return err
+}
+
+func (cli *commandLine) style(rt *runtime) color.Style {
+	return color.Resolve(color.Request{
+		Mode:    cli.Color,
+		NoColor: cli.NoColor,
+		Environ: rt.environ,
+	})
 }
 
 func analyze(rt *runtime, root string, flags analysisFlags) (gocensus.Result, error) {

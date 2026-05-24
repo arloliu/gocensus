@@ -5,6 +5,8 @@ import (
 	"io"
 	"strings"
 	"unicode"
+
+	"github.com/arloliu/gocensus/internal/color"
 )
 
 type tableAlign int
@@ -101,6 +103,7 @@ func padDisplay(value string, width int, align tableAlign) string {
 }
 
 func displayWidth(value string) int {
+	value = color.StripSGR(value)
 	width := 0
 	for _, r := range value {
 		switch {
