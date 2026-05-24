@@ -1,5 +1,7 @@
 package contrib
 
+import "slices"
+
 import "strings"
 
 func isFeature(subject string) bool {
@@ -43,10 +45,8 @@ func hasWord(text string, words ...string) bool {
 		return (r < 'a' || r > 'z') && (r < '0' || r > '9')
 	})
 	for _, field := range fields {
-		for _, word := range words {
-			if field == word {
-				return true
-			}
+		if slices.Contains(words, field) {
+			return true
 		}
 	}
 	return false

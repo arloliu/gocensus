@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/arloliu/gocensus"
 )
@@ -29,11 +30,12 @@ func formatInt(value int) string {
 		firstGroup = 3
 	}
 
-	out := text[:firstGroup]
+	var out strings.Builder
+	out.WriteString(text[:firstGroup])
 	for i := firstGroup; i < len(text); i += 3 {
-		out += "," + text[i:i+3]
+		out.WriteString("," + text[i:i+3])
 	}
-	return sign + out
+	return sign + out.String()
 }
 
 func pct(value float64) string {

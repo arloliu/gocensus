@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/arloliu/gocensus/internal/contrib"
 )
@@ -181,11 +182,12 @@ func formatWhoInt(value int) string {
 		firstGroup = 3
 	}
 
-	out := text[:firstGroup]
+	var out strings.Builder
+	out.WriteString(text[:firstGroup])
 	for i := firstGroup; i < len(text); i += 3 {
-		out += "," + text[i:i+3]
+		out.WriteString("," + text[i:i+3])
 	}
-	return sign + out
+	return sign + out.String()
 }
 
 func displayWhoNote(note string) string {
