@@ -96,6 +96,18 @@ func TestRunAllSubcommandHelpIsSelfExplaining(t *testing.T) {
 			},
 		},
 		{
+			command: "who",
+			wants: []string{
+				"Git authors",
+				"--go-only",
+				"--by",
+				"--since",
+				"--until",
+				"human-authored Go",
+				"active days",
+			},
+		},
+		{
 			command: "version",
 			wants: []string{
 				"Print the gocensus version",

@@ -68,8 +68,8 @@ func TestMain(t *testing.T) {
 		t.Fatalf("Analyze returned error: %v", err)
 	}
 
-	if result.Files.Total != 4 {
-		t.Fatalf("Files.Total = %d, want 4", result.Files.Total)
+	if result.Files.Total != 2 {
+		t.Fatalf("Files.Total = %d, want 2 included production/test files", result.Files.Total)
 	}
 	if result.Files.Production != 1 || result.Files.Tests != 1 || result.Files.Mocks != 1 || result.Files.Generated != 1 {
 		t.Fatalf("file buckets = %#v", result.Files)
@@ -85,6 +85,32 @@ func TestMain(t *testing.T) {
 	}
 	if len(result.FileMetrics) != 4 {
 		t.Fatalf("FileMetrics length = %d, want 4", len(result.FileMetrics))
+	}
+}
+
+func TestAnalyzeReportsScope(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "go.mod", "module example.com/app\n\ngo 1.21\n")
+	writeFile(t, dir, "main.go", "package main\n")
+
+	result, err := gocensus.Analyze(context.Background(), gocensus.Options{Root: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Scope != "production excludes generated and mock files" {
+		t.Fatalf("Scope = %q, want default exclusion scope", result.Scope)
+	}
+
+	result, err = gocensus.Analyze(context.Background(), gocensus.Options{
+		Root:             dir,
+		IncludeGenerated: true,
+		IncludeMocks:     true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Scope != "production includes generated and mock files" {
+		t.Fatalf("Scope = %q, want inclusion scope", result.Scope)
 	}
 }
 

@@ -27,6 +27,7 @@ type Options struct {
 type Result struct {
 	Root        string          `json:"root"`
 	ModulePath  string          `json:"module_path"`
+	Scope       string          `json:"scope"`
 	Files       FileCounts      `json:"files"`
 	Lines       LineCounts      `json:"lines"`
 	Tests       TestCounts      `json:"tests"`
@@ -157,17 +158,10 @@ func Analyze(ctx context.Context, opts Options) (Result, error) {
 			return Result{}, err
 		}
 
-		kindString := string(kind)
-		if kind == classify.KindGenerated && opts.IncludeGenerated {
-			kindString = string(classify.KindProduction)
-		}
-		if kind == classify.KindMock && opts.IncludeMocks {
-			kindString = string(classify.KindProduction)
-		}
 		fileMetrics = append(fileMetrics, FileMetric{
 			Path:                     filepath.ToSlash(rel),
 			Package:                  metrics.Package,
-			Kind:                     kindString,
+			Kind:                     string(kind),
 			Generated:                kind == classify.KindGenerated,
 			RawLines:                 metrics.RawLines,
 			CodeLines:                metrics.CodeLines,
@@ -181,10 +175,25 @@ func Analyze(ctx context.Context, opts Options) (Result, error) {
 		})
 	}
 
-	return buildResult(absRoot, modulePath, fileMetrics), nil
+	result := buildResult(absRoot, modulePath, fileMetrics, opts)
+	result.Scope = scanScope(opts)
+	return result, nil
 }
 
-func buildResult(root string, modulePath string, fileMetrics []FileMetric) Result {
+func scanScope(opts Options) string {
+	switch {
+	case opts.IncludeGenerated && opts.IncludeMocks:
+		return "production includes generated and mock files"
+	case opts.IncludeGenerated:
+		return "production includes generated files and excludes mock files"
+	case opts.IncludeMocks:
+		return "production excludes generated files and includes mock files"
+	default:
+		return "production excludes generated and mock files"
+	}
+}
+
+func buildResult(root string, modulePath string, fileMetrics []FileMetric, opts Options) Result {
 	result := Result{
 		Root:        root,
 		ModulePath:  modulePath,
@@ -193,7 +202,9 @@ func buildResult(root string, modulePath string, fileMetrics []FileMetric) Resul
 
 	byPackage := map[string]*PackageMetric{}
 	for _, file := range fileMetrics {
-		addFile(&result.Files, &result.Lines, &result.Tests, file)
+		reportFile := file
+		reportFile.Kind = reportKind(file.Kind, opts)
+		addFile(&result.Files, &result.Lines, &result.Tests, reportFile)
 		pkg := byPackage[file.Package]
 		if pkg == nil {
 			pkg = &PackageMetric{
@@ -202,7 +213,7 @@ func buildResult(root string, modulePath string, fileMetrics []FileMetric) Resul
 			}
 			byPackage[file.Package] = pkg
 		}
-		addFile(&pkg.Files, &pkg.Lines, &pkg.Tests, file)
+		addFile(&pkg.Files, &pkg.Lines, &pkg.Tests, reportFile)
 	}
 	result.Ratios = ratios(result.Lines)
 
@@ -222,8 +233,21 @@ func buildResult(root string, modulePath string, fileMetrics []FileMetric) Resul
 	return result
 }
 
+func reportKind(kind string, opts Options) string {
+	switch kind {
+	case string(classify.KindGenerated):
+		if opts.IncludeGenerated {
+			return string(classify.KindProduction)
+		}
+	case string(classify.KindMock):
+		if opts.IncludeMocks {
+			return string(classify.KindProduction)
+		}
+	}
+	return kind
+}
+
 func addFile(files *FileCounts, lines *LineCounts, tests *TestCounts, file FileMetric) {
-	files.Total++
 	tests.Tests += file.Tests
 	tests.StaticSubtests += file.StaticSubtests
 	tests.DynamicSubtestSites += file.DynamicSubtestSites
@@ -235,10 +259,12 @@ func addFile(files *FileCounts, lines *LineCounts, tests *TestCounts, file FileM
 	metric := Metric{Raw: file.RawLines, Effective: file.CodeLines}
 	switch file.Kind {
 	case "production":
+		files.Total++
 		files.Production++
 		lines.Production.Raw += metric.Raw
 		lines.Production.Effective += metric.Effective
 	case "test":
+		files.Total++
 		files.Tests++
 		lines.Tests.Raw += metric.Raw
 		lines.Tests.Effective += metric.Effective
@@ -254,14 +280,11 @@ func addFile(files *FileCounts, lines *LineCounts, tests *TestCounts, file FileM
 }
 
 func ratios(lines LineCounts) Ratios {
-	totalRaw := lines.Production.Raw + lines.Tests.Raw + lines.Generated.Raw + lines.Mocks.Raw
 	totalEffective := lines.Production.Effective + lines.Tests.Effective
 	return Ratios{
 		TestToProductionRaw:       divide(lines.Tests.Raw, lines.Production.Raw),
 		TestToProductionEffective: divide(lines.Tests.Effective, lines.Production.Effective),
 		TestShareEffective:        divide(lines.Tests.Effective, totalEffective),
-		GeneratedShareRaw:         divide(lines.Generated.Raw, totalRaw),
-		MockShareRaw:              divide(lines.Mocks.Raw, totalRaw),
 	}
 }
 

@@ -3,6 +3,9 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -155,5 +158,153 @@ func TestTable(t *testing.T) {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout = %q, want %q", stdout.String(), want)
 		}
+	}
+}
+
+func TestRunWhoRanksContributorsByRemovedLines(t *testing.T) {
+	dir := writeGitRepo(t)
+	writeFile(t, dir, "app.txt", "one\ntwo\nthree\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Alice", "alice@example.com", "2026-01-03T12:00:00Z", "feat: add app")
+	writeFile(t, dir, "app.txt", "one\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Bob", "bob@example.com", "2026-01-04T12:00:00Z", "fix: close issue #12")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"who", dir, "--by", "removed"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	output := stdout.String()
+	for _, want := range []string{"Who", "Author", "Commits", "Feat", "Fix", "Refactor", "Added", "Removed", "Churn"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout = %q, want %q", output, want)
+		}
+	}
+	bobIndex := strings.Index(output, "Bob")
+	aliceIndex := strings.Index(output, "Alice")
+	if bobIndex < 0 || aliceIndex < 0 {
+		t.Fatalf("stdout = %q, want Bob and Alice", output)
+	}
+	if bobIndex > aliceIndex {
+		t.Fatalf("stdout = %q, want Bob before Alice", output)
+	}
+}
+
+func TestRunWhoGoOnlyDefaultsToHumanAuthoredGo(t *testing.T) {
+	dir := writeGitRepo(t)
+	writeFile(t, dir, "main.go", "package main\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Alice", "alice@example.com", "2026-01-03T12:00:00Z", "feat: add main")
+	writeFile(t, dir, "service.pb.go", "package main\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Bob", "bob@example.com", "2026-01-04T12:00:00Z", "feat: add generated")
+	writeFile(t, dir, "mock_client.go", "package main\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Carol", "carol@example.com", "2026-01-05T12:00:00Z", "feat: add mock")
+	writeFile(t, dir, "README.md", "docs\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Dan", "dan@example.com", "2026-01-06T12:00:00Z", "docs: add docs")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"who", dir, "--go-only", "-n", "0"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	output := stdout.String()
+	for _, want := range []string{
+		"Scope: human-authored Go files",
+		"generated and mock paths excluded",
+		"Feature/Fix/Refactor: commit-message heuristics",
+		"Line metrics: git log --numstat",
+		"Alice",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout = %q, want %q", output, want)
+		}
+	}
+	for _, notWant := range []string{"Bob", "Carol", "Dan"} {
+		if strings.Contains(output, notWant) {
+			t.Fatalf("stdout = %q, did not want %q", output, notWant)
+		}
+	}
+}
+
+func TestRunWhoGoOnlyCanIncludeGeneratedAndMocks(t *testing.T) {
+	dir := writeGitRepo(t)
+	writeFile(t, dir, "main.go", "package main\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Alice", "alice@example.com", "2026-01-03T12:00:00Z", "feat: add main")
+	writeFile(t, dir, "service.pb.go", "package main\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Bob", "bob@example.com", "2026-01-04T12:00:00Z", "feat: add generated")
+	writeFile(t, dir, "mocks/client.go", "package main\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Carol", "carol@example.com", "2026-01-05T12:00:00Z", "feat: add mock")
+	writeFile(t, dir, "README.md", "docs\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Dan", "dan@example.com", "2026-01-06T12:00:00Z", "docs: add docs")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"who", dir, "--go-only", "--include-generated", "--include-mocks", "-n", "0"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	output := stdout.String()
+	for _, want := range []string{"Scope: all Go files", "Alice", "Bob", "Carol"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout = %q, want %q", output, want)
+		}
+	}
+	if strings.Contains(output, "Dan") {
+		t.Fatalf("stdout = %q, did not want Dan", output)
+	}
+}
+
+func writeGitRepo(t *testing.T) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	runGit(t, dir, "init")
+	return dir
+}
+
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"GIT_CONFIG_NOSYSTEM=1",
+		"HOME="+filepath.ToSlash(t.TempDir()),
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s failed: %v\n%s", strings.Join(args, " "), err, output)
+	}
+}
+
+func commitGit(t *testing.T, dir string, name string, email string, date string, message string) {
+	t.Helper()
+
+	cmd := exec.Command("git", "commit", "--author", name+" <"+email+">", "-m", message)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_COMMITTER_NAME="+name,
+		"GIT_COMMITTER_EMAIL="+email,
+		"GIT_AUTHOR_DATE="+date,
+		"GIT_COMMITTER_DATE="+date,
+		"HOME="+filepath.ToSlash(t.TempDir()),
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git commit failed: %v\n%s", err, output)
 	}
 }

@@ -8,23 +8,27 @@ import (
 )
 
 func markdown(w io.Writer, result gocensus.Result) error {
-	if _, err := fmt.Fprintf(w, `# Go Census: %s
-
-## Files
+	if _, err := fmt.Fprintf(w, "# Go Census: %s\n\n", displayName(result)); err != nil {
+		return err
+	}
+	if result.Scope != "" {
+		if _, err := fmt.Fprintf(w, "Scope: %s\n\n", result.Scope); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprintf(w, `## Files
 
 | Kind | Files | Raw Lines | Effective Lines |
 | --- | ---: | ---: | ---: |
-| Production | %d | %d | %d |
+| Production Scope | %d | %d | %d |
 | Tests | %d | %d | %d |
-| Generated | %d | %d | %d |
-| Mocks | %d | %d | %d |
+| Excluded Generated | %d | %d | %d |
+| Excluded Mocks | %d | %d | %d |
 
 ## Ratios
 
-- Test / Production: %s effective
+- Test / Production Scope: %s effective
 - Test Share: %s
-- Generated Share: %s
-- Mock Share: %s
 
 ## Tests
 
@@ -41,7 +45,6 @@ func markdown(w io.Writer, result gocensus.Result) error {
 | Package | Prod Lines | Test Lines | Test Ratio |
 | --- | ---: | ---: | ---: |
 `,
-		displayName(result),
 		result.Files.Production,
 		result.Lines.Production.Raw,
 		result.Lines.Production.Effective,
@@ -56,8 +59,6 @@ func markdown(w io.Writer, result gocensus.Result) error {
 		result.Lines.Mocks.Effective,
 		ratio(result.Ratios.TestToProductionEffective),
 		pct(result.Ratios.TestShareEffective),
-		pct(result.Ratios.GeneratedShareRaw),
-		pct(result.Ratios.MockShareRaw),
 		result.Tests.Tests,
 		result.Tests.StaticSubtests,
 		result.Tests.DynamicSubtestSites,

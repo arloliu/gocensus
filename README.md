@@ -53,23 +53,22 @@ Example output:
 
 ```text
 Go Census: github.com/arloliu/gocensus
+Scope: production excludes generated and mock files
 
 Overview
   Go files: 24    Packages: 13    Known test cases: 46
 
 Code Mix
-  Kind          Files   Raw Lines   Effective Lines
-  Production      14       1,538             1,320
-  Tests           10       1,103               848
-  Generated        0           0                 0
-  Mocks            0           0                 0
-  Total           24       2,641             2,168
+  Kind                 Files   Raw Lines   Effective Lines
+  Production Scope       14       1,538             1,320
+  Tests                  10       1,103               848
+  Excluded Generated      0           0                 0
+  Excluded Mocks          0           0                 0
+  Total                  24       2,641             2,168
 
 Ratios
-  Test / Production       0.64:1
-  Test Share               39.1%
-  Generated Share           0.0%
-  Mock Share                0.0%
+  Test / Production Scope       0.64:1
+  Test Share                     39.1%
 ```
 
 ## Commands
@@ -81,6 +80,7 @@ Ratios
 | `gocensus packages [root]` | Show package-level production and test metrics. |
 | `gocensus files [root]` | Show file-level classification and line counts. |
 | `gocensus tests [root]` | Summarize tests, subtests, benchmarks, and examples. |
+| `gocensus who [root]` | Rank contributors from Git history. |
 | `gocensus version` | Print the CLI version. |
 
 Use command-specific help to see flags:
@@ -141,6 +141,24 @@ Show test inventory:
 gocensus tests .
 ```
 
+Rank contributors by commit count:
+
+```bash
+gocensus who .
+```
+
+Rank contributors in the recommended human-authored Go scope:
+
+```bash
+gocensus who . --go-only
+```
+
+Rank contributors by removed lines:
+
+```bash
+gocensus who . --go-only --by removed
+```
+
 ## Output Formats
 
 `scan` and `report` support:
@@ -174,8 +192,8 @@ Global analysis flags:
 | --- | --- |
 | `--no-gitignore` | Do not read `.gitignore` exclude rules. |
 | `-x, --exclude PATTERN` | Exclude paths matching a pattern. Can be repeated. |
-| `--include-generated` | Count generated files as production code. |
-| `--include-mocks` | Count mock files as production code. |
+| `--include-generated` | Count generated files as production code for scan/report views; with `who --go-only`, include generated Go paths. |
+| `--include-mocks` | Count mock files as production code for scan/report views; with `who --go-only`, include mock Go paths. |
 
 ## Metric Meanings
 
@@ -183,12 +201,10 @@ Global analysis flags:
 | --- | --- |
 | Raw Lines | Physical lines, including blanks and comments. |
 | Effective Lines | Lines containing non-comment Go tokens. |
-| Production | Non-test Go files, excluding generated files and mocks by default. |
+| Production Scope | Non-test Go files counted as production; the scope line says whether generated and mock files are included. |
 | Tests | `*_test.go` files. |
-| Test / Production | Effective test lines divided by effective production lines. |
+| Test / Production Scope | Effective test lines divided by effective production-scope lines. |
 | Test Share | Effective test lines divided by production plus test effective lines. |
-| Generated Share | Generated raw lines divided by total raw lines. |
-| Mock Share | Mock raw lines divided by total raw lines. |
 | Known Test Cases | Top-level tests plus statically countable subtests. |
 | Dynamic Subtest Sites | `t.Run` or `b.Run` call sites where runtime data controls the case count. |
 
@@ -214,6 +230,47 @@ Examples
 `Known Test Cases` is the sum of top-level `TestXxx` functions and subtests whose case count can be determined statically.
 
 Dynamic subtest sites are reported separately because their runtime case count is not knowable from source alone.
+
+## Contributor Rankings
+
+`gocensus who` reads Git history for all tracked files under the requested root. It combines factual Git diffstat metrics with transparent commit-message heuristics.
+
+Use `--go-only` for the recommended human-authored Go contribution view. That mode includes `*.go` paths and excludes generated and mock Go paths by default. Add generated or mock Go paths back explicitly:
+
+```bash
+gocensus who . --go-only --include-generated
+gocensus who . --go-only --include-mocks
+```
+
+Go-only filtering is path-based so it works across historical commits, including files that were later deleted. It does not inspect old file contents for generated-code comments.
+
+Ranking choices:
+
+| Sort | Meaning |
+| --- | --- |
+| `commits` | Number of commits by author. |
+| `features` | Commits whose subject looks like feature work, such as `feat:` or `add`. |
+| `fixes` | Commits whose subject looks like a bug or issue fix, such as `fix:` or `closes #123`. |
+| `refactors` | Commits whose subject looks like refactoring work, such as `refactor:`. |
+| `added` | Lines added from Git numstat. |
+| `removed` | Lines removed from Git numstat. |
+| `net` | Added lines minus removed lines. |
+| `shrink` | Largest net reduction, computed as removed lines minus added lines. |
+| `churn` | Added plus removed lines. |
+| `files` | Unique file paths touched. |
+| `active-days` | Distinct commit dates by author. |
+
+Examples:
+
+```bash
+gocensus who . --go-only
+gocensus who . --by churn -n 20
+gocensus who . --go-only --by churn -n 20
+gocensus who . --since 2026-01-01 --until 2026-03-31
+gocensus who . -f markdown -o contributors.md
+```
+
+Feature, fix, and refactor counts are message-classified intent metrics, not semantic proof of what changed. Line, file, commit, and active-day counts come from Git history.
 
 ## Library Usage
 

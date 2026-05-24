@@ -8,12 +8,20 @@ import (
 )
 
 func table(w io.Writer, result gocensus.Result) error {
-	totalRaw := result.Lines.Production.Raw + result.Lines.Tests.Raw + result.Lines.Generated.Raw + result.Lines.Mocks.Raw
-	totalEffective := result.Lines.Production.Effective + result.Lines.Tests.Effective + result.Lines.Generated.Effective + result.Lines.Mocks.Effective
+	totalRaw := result.Lines.Production.Raw + result.Lines.Tests.Raw
+	totalEffective := result.Lines.Production.Effective + result.Lines.Tests.Effective
 	knownTestCases := result.Tests.Tests + result.Tests.StaticSubtests
 	knownBenchmarkCases := result.Tests.Benchmarks + result.Tests.StaticSubbenchmarks
 
-	if _, err := fmt.Fprintf(w, "Go Census: %s\n\n", displayName(result)); err != nil {
+	if _, err := fmt.Fprintf(w, "Go Census: %s\n", displayName(result)); err != nil {
+		return err
+	}
+	if result.Scope != "" {
+		if _, err := fmt.Fprintf(w, "Scope: %s\n", result.Scope); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprintln(w); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintf(w, "Overview\n  Go files: %s    Packages: %s    Known test cases: %s\n\n",
@@ -27,19 +35,19 @@ func table(w io.Writer, result gocensus.Result) error {
 	if _, err := fmt.Fprintln(w, "Code Mix"); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(w, "  Kind          Files   Raw Lines   Effective Lines"); err != nil {
+	if _, err := fmt.Fprintln(w, "  Kind                 Files   Raw Lines   Effective Lines"); err != nil {
 		return err
 	}
-	if err := codeMixRow(w, "Production", result.Files.Production, result.Lines.Production.Raw, result.Lines.Production.Effective); err != nil {
+	if err := codeMixRow(w, "Production Scope", result.Files.Production, result.Lines.Production.Raw, result.Lines.Production.Effective); err != nil {
 		return err
 	}
 	if err := codeMixRow(w, "Tests", result.Files.Tests, result.Lines.Tests.Raw, result.Lines.Tests.Effective); err != nil {
 		return err
 	}
-	if err := codeMixRow(w, "Generated", result.Files.Generated, result.Lines.Generated.Raw, result.Lines.Generated.Effective); err != nil {
+	if err := codeMixRow(w, "Excluded Generated", result.Files.Generated, result.Lines.Generated.Raw, result.Lines.Generated.Effective); err != nil {
 		return err
 	}
-	if err := codeMixRow(w, "Mocks", result.Files.Mocks, result.Lines.Mocks.Raw, result.Lines.Mocks.Effective); err != nil {
+	if err := codeMixRow(w, "Excluded Mocks", result.Files.Mocks, result.Lines.Mocks.Raw, result.Lines.Mocks.Effective); err != nil {
 		return err
 	}
 	if err := codeMixRow(w, "Total", result.Files.Total, totalRaw, totalEffective); err != nil {
@@ -52,19 +60,12 @@ func table(w io.Writer, result gocensus.Result) error {
 	if _, err := fmt.Fprintln(w, "Ratios"); err != nil {
 		return err
 	}
-	if err := ratioRow(w, "Test / Production", ratio(result.Ratios.TestToProductionEffective)); err != nil {
+	if err := ratioRow(w, "Test / Production Scope", ratio(result.Ratios.TestToProductionEffective)); err != nil {
 		return err
 	}
 	if err := ratioRow(w, "Test Share", pct(result.Ratios.TestShareEffective)); err != nil {
 		return err
 	}
-	if err := ratioRow(w, "Generated Share", pct(result.Ratios.GeneratedShareRaw)); err != nil {
-		return err
-	}
-	if err := ratioRow(w, "Mock Share", pct(result.Ratios.MockShareRaw)); err != nil {
-		return err
-	}
-
 	if _, err := fmt.Fprintln(w); err != nil {
 		return err
 	}
@@ -111,16 +112,16 @@ func table(w io.Writer, result gocensus.Result) error {
 	}{
 		{field: "Raw Lines", text: "Physical lines, including blanks and comments."},
 		{field: "Effective Lines", text: "Lines containing non-comment Go tokens."},
-		{field: "Production", text: "Non-test Go files, excluding generated files and mocks."},
+		{field: "Production Scope", text: "Non-test Go files counted as production; scope line shows generated/mock inclusion."},
 		{field: "Tests", text: "*_test.go files."},
 		{field: "Known Cases", text: "Top-level tests plus statically countable subtests."},
 		{field: "Static Subtests", text: "t.Run/b.Run cases with statically countable case data."},
 		{field: "Dynamic Sites", text: "t.Run/b.Run call sites with runtime-dependent case counts."},
-		{field: "Generated", text: "Files with generated-code markers or generated suffixes."},
-		{field: "Mocks", text: "Files classified as mock/support code."},
+		{field: "Excluded Generated", text: "Generated files not counted in production scope."},
+		{field: "Excluded Mocks", text: "Mock/support files not counted in production scope."},
 	}
 	for _, note := range notes {
-		if _, err := fmt.Fprintf(w, "  %-16s %s\n", note.field, note.text); err != nil {
+		if _, err := fmt.Fprintf(w, "  %-20s %s\n", note.field, note.text); err != nil {
 			return err
 		}
 	}
@@ -128,7 +129,7 @@ func table(w io.Writer, result gocensus.Result) error {
 }
 
 func codeMixRow(w io.Writer, kind string, files int, raw int, effective int) error {
-	_, err := fmt.Fprintf(w, "  %-13s%5s   %9s   %15s\n",
+	_, err := fmt.Fprintf(w, "  %-20s%5s   %9s   %15s\n",
 		kind,
 		formatInt(files),
 		formatInt(raw),
@@ -138,6 +139,6 @@ func codeMixRow(w io.Writer, kind string, files int, raw int, effective int) err
 }
 
 func ratioRow(w io.Writer, label string, value string) error {
-	_, err := fmt.Fprintf(w, "  %-22s %7s\n", label, value)
+	_, err := fmt.Fprintf(w, "  %-28s %7s\n", label, value)
 	return err
 }
