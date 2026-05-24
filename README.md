@@ -210,8 +210,8 @@ Global analysis flags:
 | --- | --- |
 | `--no-gitignore` | Do not read `.gitignore` exclude rules. |
 | `-x, --exclude PATTERN` | Exclude paths matching a pattern. Can be repeated. |
-| `--include-generated` | Count generated files as production code for scan/report views; with `who --go-only`, include generated Go paths. |
-| `--include-mocks` | Count mock files as production code for scan/report views; with `who --go-only`, include mock Go paths. |
+| `--include-generated` | Count generated files as production code for scan/report views and include generated paths in contributor rankings. |
+| `--include-mocks` | Count mock files as production code for scan/report views and include mock paths in contributor rankings. |
 
 ## Metric Meanings
 
@@ -255,17 +255,19 @@ Dynamic subtest sites are reported separately because their runtime case count i
 
 ## Contributor Rankings
 
-`gocensus who` reads Git history for all tracked files under the requested root. It combines factual Git diffstat metrics with transparent commit-message heuristics.
+`gocensus who` reads Git history for tracked files under the requested root. It combines factual Git diffstat metrics with transparent commit-message heuristics.
 
-Use `--exclude-generated` and `--exclude-mocks` to remove generated or mock paths across all tracked file types:
+Like `scan`, contributor rankings exclude generated and mock paths by default. Add those paths back explicitly:
 
 ```bash
-gocensus who . --exclude-generated --exclude-mocks
+gocensus who . --include-generated
+gocensus who . --include-mocks
 ```
 
-Use `--go-only` for the recommended human-authored Go contribution view. That mode includes `*.go` paths and excludes generated and mock Go paths by default. Add generated or mock Go paths back explicitly:
+Use `--go-only` to limit the ranking to Go paths while keeping the same generated/mock defaults:
 
 ```bash
+gocensus who . --go-only
 gocensus who . --go-only --include-generated
 gocensus who . --go-only --include-mocks
 ```

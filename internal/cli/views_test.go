@@ -458,7 +458,7 @@ func TestRunWhoGoOnlyCanIncludeGeneratedAndMocks(t *testing.T) {
 	}
 }
 
-func TestRunWhoCanExcludeGeneratedAndMocksAcrossAllTrackedFiles(t *testing.T) {
+func TestRunWhoExcludesGeneratedAndMocksByDefault(t *testing.T) {
 	dir := writeGitRepo(t)
 	writeFile(t, dir, "README.md", "docs\n")
 	runGit(t, dir, "add", ".")
@@ -472,7 +472,7 @@ func TestRunWhoCanExcludeGeneratedAndMocksAcrossAllTrackedFiles(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	code := cli.Run(context.Background(), []string{"who", dir, "--exclude-generated", "--exclude-mocks", "-n", "0"}, &stdout, &stderr, "dev")
+	code := cli.Run(context.Background(), []string{"who", dir, "-n", "0"}, &stdout, &stderr, "dev")
 
 	if code != 0 {
 		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
@@ -489,6 +489,38 @@ func TestRunWhoCanExcludeGeneratedAndMocksAcrossAllTrackedFiles(t *testing.T) {
 	for _, notWant := range []string{"Bob", "Carol"} {
 		if strings.Contains(output, notWant) {
 			t.Fatalf("stdout = %q, did not want %q", output, notWant)
+		}
+	}
+}
+
+func TestRunWhoCanIncludeGeneratedAndMocksAcrossAllTrackedFiles(t *testing.T) {
+	dir := writeGitRepo(t)
+	writeFile(t, dir, "README.md", "docs\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Alice", "alice@example.com", "2026-01-03T12:00:00Z", "docs: add readme")
+	writeFile(t, dir, "docs/generated/report.md", "generated report\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Bob", "bob@example.com", "2026-01-04T12:00:00Z", "docs: add generated report")
+	writeFile(t, dir, "fixtures/mock_payload.json", "{}\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Carol", "carol@example.com", "2026-01-05T12:00:00Z", "test: add mock payload")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"who", dir, "--include-generated", "--include-mocks", "-n", "0"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	output := stdout.String()
+	for _, want := range []string{
+		"Scope: all Git-tracked files, including generated and mock paths",
+		"Alice",
+		"Bob",
+		"Carol",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout = %q, want %q", output, want)
 		}
 	}
 }

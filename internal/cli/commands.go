@@ -32,8 +32,8 @@ type commandLine struct {
 type analysisFlags struct {
 	NoGitignore      bool     `name:"no-gitignore" help:"Do not read .gitignore exclude rules."`
 	ExtraExcludes    []string `name:"exclude" short:"x" placeholder:"PATTERN" help:"Exclude paths matching pattern; can be repeated."`
-	IncludeGenerated bool     `name:"include-generated" help:"Include generated files in scan production totals; with who --go-only, include generated Go paths."`
-	IncludeMocks     bool     `name:"include-mocks" help:"Include mock files in scan production totals; with who --go-only, include mock Go paths."`
+	IncludeGenerated bool     `name:"include-generated" help:"Include generated files in scan production totals and who contributor rankings."`
+	IncludeMocks     bool     `name:"include-mocks" help:"Include mock files in scan production totals and who contributor rankings."`
 }
 
 type rootArg struct {
@@ -68,15 +68,13 @@ type testsCmd struct {
 
 type whoCmd struct {
 	rootArg
-	GoOnly           bool   `name:"go-only" help:"Rank human-authored Go paths only: *.go with generated and mock paths excluded unless --include-generated or --include-mocks is set."`
-	ExcludeGenerated bool   `name:"exclude-generated" help:"Exclude generated paths from contributor rankings across all tracked file types."`
-	ExcludeMocks     bool   `name:"exclude-mocks" help:"Exclude mock paths from contributor rankings across all tracked file types."`
-	By               string `name:"by" enum:"commits,features,fixes,refactors,added,removed,net,shrink,churn,files,active-days" default:"commits" help:"Rank by commits, features, fixes, refactors, added, removed, net, shrink, churn, files, or active-days."`
-	Top              int    `short:"n" default:"10" help:"Maximum number of contributors to print; use 0 for all contributors."`
-	Since            string `name:"since" placeholder:"DATE" help:"Only include commits after this date or Git revision expression."`
-	Until            string `name:"until" placeholder:"DATE" help:"Only include commits before this date or Git revision expression."`
-	Format           string `short:"f" enum:"table,json,markdown" default:"table" help:"Output format: table, json, or markdown."`
-	Output           string `short:"o" placeholder:"PATH" help:"Write output to file instead of stdout."`
+	GoOnly bool   `name:"go-only" help:"Rank Go paths only: *.go with generated and mock paths excluded unless --include-generated or --include-mocks is set."`
+	By     string `name:"by" enum:"commits,features,fixes,refactors,added,removed,net,shrink,churn,files,active-days" default:"commits" help:"Rank by commits, features, fixes, refactors, added, removed, net, shrink, churn, files, or active-days."`
+	Top    int    `short:"n" default:"10" help:"Maximum number of contributors to print; use 0 for all contributors."`
+	Since  string `name:"since" placeholder:"DATE" help:"Only include commits after this date or Git revision expression."`
+	Until  string `name:"until" placeholder:"DATE" help:"Only include commits before this date or Git revision expression."`
+	Format string `short:"f" enum:"table,json,markdown" default:"table" help:"Output format: table, json, or markdown."`
+	Output string `short:"o" placeholder:"PATH" help:"Write output to file instead of stdout."`
 }
 
 type diffCmd struct {
@@ -120,7 +118,7 @@ func (cmd testsCmd) Help() string {
 }
 
 func (cmd whoCmd) Help() string {
-	return "Rank Git authors by commit count, message-classified feature/fix/refactor work, added and removed lines, net change, churn, files touched, and active days. By default this uses all Git-tracked files. Use --exclude-generated and --exclude-mocks to remove generated or mock paths across all tracked file types. Use --go-only for the recommended human-authored Go view; with --go-only, --include-generated and --include-mocks add generated or mock Go paths back into the result."
+	return "Rank Git authors by commit count, message-classified feature/fix/refactor work, added and removed lines, net change, churn, files touched, and active days. By default this excludes generated and mock paths, matching scan scope. Use --include-generated and --include-mocks to add those paths back; use --go-only to limit rankings to Go paths."
 }
 
 func (cmd diffCmd) Help() string {
@@ -183,8 +181,6 @@ func (cmd *whoCmd) Run(cli *commandLine, rt *runtime) error {
 		GoOnly:           cmd.GoOnly,
 		IncludeGenerated: cli.IncludeGenerated,
 		IncludeMocks:     cli.IncludeMocks,
-		ExcludeGenerated: cmd.ExcludeGenerated,
-		ExcludeMocks:     cmd.ExcludeMocks,
 	})
 	if err != nil {
 		return err

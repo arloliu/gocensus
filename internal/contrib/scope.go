@@ -4,14 +4,14 @@ package contrib
 func ScopeDescription(opts ParseOptions) string {
 	if !opts.GoOnly {
 		switch {
-		case opts.ExcludeGenerated && opts.ExcludeMocks:
-			return "all Git-tracked files, generated and mock paths excluded"
-		case opts.ExcludeGenerated:
-			return "all Git-tracked files, generated paths excluded"
-		case opts.ExcludeMocks:
-			return "all Git-tracked files, mock paths excluded"
+		case opts.IncludeGenerated && opts.IncludeMocks:
+			return "all Git-tracked files, including generated and mock paths"
+		case opts.IncludeGenerated:
+			return "all Git-tracked files, including generated paths and excluding mock paths"
+		case opts.IncludeMocks:
+			return "all Git-tracked files, excluding generated paths and including mock paths"
 		}
-		return "all Git-tracked files"
+		return "all Git-tracked files, generated and mock paths excluded"
 	}
 	excludeGenerated := excludeGenerated(opts)
 	excludeMocks := excludeMocks(opts)
@@ -35,18 +35,14 @@ func ScopeNotes(opts ParseOptions) []string {
 	}
 	if opts.GoOnly {
 		notes = append(notes, "Go-only filtering is path-based for historical safety; it does not inspect old file contents.")
-		if opts.ExcludeGenerated {
-			notes = append(notes, "Generated Go paths are excluded.")
-		} else if excludeGenerated(opts) {
-			notes = append(notes, "Generated Go paths are excluded by default; use --include-generated with --go-only to include them.")
-		}
-		if opts.ExcludeMocks {
-			notes = append(notes, "Mock Go paths are excluded.")
-		} else if excludeMocks(opts) {
-			notes = append(notes, "Mock Go paths are excluded by default; use --include-mocks with --go-only to include them.")
-		}
-	} else if opts.ExcludeGenerated || opts.ExcludeMocks {
+	} else if excludeGenerated(opts) || excludeMocks(opts) {
 		notes = append(notes, "Contribution path filtering is path-based for historical safety; it does not inspect old file contents.")
+	}
+	if excludeGenerated(opts) {
+		notes = append(notes, "Generated paths are excluded by default; use --include-generated to include them.")
+	}
+	if excludeMocks(opts) {
+		notes = append(notes, "Mock paths are excluded by default; use --include-mocks to include them.")
 	}
 	return notes
 }

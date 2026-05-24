@@ -121,7 +121,7 @@ func TestParseLogWithOptionsCanIncludeGeneratedAndMocks(t *testing.T) {
 	}
 }
 
-func TestParseLogWithOptionsCanExcludeGeneratedAndMocksAcrossAllPaths(t *testing.T) {
+func TestParseLogWithOptionsExcludesGeneratedAndMocksByDefault(t *testing.T) {
 	input := strings.Join([]string{
 		"\x1eaaa\x1fAlice\x1falice@example.com\x1f2026-01-03\x1ffeat: add generated docs",
 		"100\t0\tdocs/generated/report.md",
@@ -133,16 +133,36 @@ func TestParseLogWithOptionsCanExcludeGeneratedAndMocksAcrossAllPaths(t *testing
 		"7\t1\tinternal/app/main.go",
 	}, "\n")
 
-	report, err := contrib.ParseLogWithOptions(strings.NewReader(input), contrib.ParseOptions{
-		ExcludeGenerated: true,
-		ExcludeMocks:     true,
-	})
+	report, err := contrib.ParseLogWithOptions(strings.NewReader(input), contrib.ParseOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if got := names(report.Contributors); strings.Join(got, ",") != "Carol,Dan" {
 		t.Fatalf("contributors = %v, want Carol,Dan", got)
+	}
+}
+
+func TestParseLogWithOptionsCanIncludeGeneratedAndMocksAcrossAllPaths(t *testing.T) {
+	input := strings.Join([]string{
+		"\x1eaaa\x1fAlice\x1falice@example.com\x1f2026-01-03\x1ffeat: add generated docs",
+		"100\t0\tdocs/generated/report.md",
+		"\x1ebbb\x1fBob\x1fbob@example.com\x1f2026-01-04\x1ffeat: add mock fixture",
+		"20\t0\tfixtures/mock_payload.json",
+		"\x1eccc\x1fCarol\x1fcarol@example.com\x1f2026-01-05\x1ffeat: add docs",
+		"5\t0\tREADME.md",
+	}, "\n")
+
+	report, err := contrib.ParseLogWithOptions(strings.NewReader(input), contrib.ParseOptions{
+		IncludeGenerated: true,
+		IncludeMocks:     true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := names(report.Contributors); strings.Join(got, ",") != "Alice,Bob,Carol" {
+		t.Fatalf("contributors = %v, want Alice,Bob,Carol", got)
 	}
 }
 

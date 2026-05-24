@@ -19,11 +19,11 @@ func keepPath(path string, opts ParseOptions) bool {
 }
 
 func excludeGenerated(opts ParseOptions) bool {
-	return opts.ExcludeGenerated || (opts.GoOnly && !opts.IncludeGenerated)
+	return !opts.IncludeGenerated
 }
 
 func excludeMocks(opts ParseOptions) bool {
-	return opts.ExcludeMocks || (opts.GoOnly && !opts.IncludeMocks)
+	return !opts.IncludeMocks
 }
 
 func isGeneratedPath(path string) bool {

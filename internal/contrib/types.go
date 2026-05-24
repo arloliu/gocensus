@@ -22,8 +22,6 @@ type Options struct {
 	GoOnly           bool
 	IncludeGenerated bool
 	IncludeMocks     bool
-	ExcludeGenerated bool
-	ExcludeMocks     bool
 }
 
 // ParseOptions controls filtering while parsing Git numstat history.
@@ -31,8 +29,6 @@ type ParseOptions struct {
 	GoOnly           bool
 	IncludeGenerated bool
 	IncludeMocks     bool
-	ExcludeGenerated bool
-	ExcludeMocks     bool
 }
 
 // RankOptions controls contributor ordering and truncation.
