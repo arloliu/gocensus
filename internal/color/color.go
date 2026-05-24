@@ -70,31 +70,31 @@ func (s Style) Level() Level {
 }
 
 func (s Style) Title(text string) string {
-	return s.wrap(text, ansi("1", "36"), rgb(94, 234, 212, true))
-}
-
-func (s Style) Section(text string) string {
-	return s.wrap(text, ansi("1", "34"), rgb(96, 165, 250, true))
-}
-
-func (s Style) Header(text string) string {
 	return s.wrap(text, ansi("1", "36"), rgb(125, 211, 252, true))
 }
 
+func (s Style) Section(text string) string {
+	return s.wrap(text, ansi("1", "34"), rgb(147, 197, 253, true))
+}
+
+func (s Style) Header(text string) string {
+	return s.wrap(text, ansi("1", "36"), rgb(186, 230, 253, true))
+}
+
 func (s Style) Label(text string) string {
-	return s.wrap(text, ansi("36"), rgb(103, 232, 249, false))
+	return s.wrap(text, ansi("36"), rgb(165, 180, 252, false))
 }
 
 func (s Style) Metric(text string) string {
-	return s.wrap(text, ansi("32"), rgb(74, 222, 128, false))
+	return s.wrap(text, ansi("32"), rgb(203, 213, 225, false))
 }
 
 func (s Style) Warn(text string) string {
-	return s.wrap(text, ansi("33"), rgb(250, 204, 21, false))
+	return s.wrap(text, ansi("33"), rgb(253, 224, 71, false))
 }
 
 func (s Style) Bad(text string) string {
-	return s.wrap(text, ansi("31"), rgb(248, 113, 113, false))
+	return s.wrap(text, ansi("31"), rgb(252, 165, 165, false))
 }
 
 func (s Style) Muted(text string) string {

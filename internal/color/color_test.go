@@ -59,6 +59,32 @@ func TestResolveDetectsRGB(t *testing.T) {
 	}
 }
 
+func TestRGBStyleUsesSoftOceanPalette(t *testing.T) {
+	style := color.RGB()
+	tests := []struct {
+		name string
+		got  string
+		want string
+	}{
+		{name: "title", got: style.Title("Go Census"), want: "\x1b[1m\x1b[38;2;125;211;252mGo Census\x1b[0m"},
+		{name: "section", got: style.Section("Overview"), want: "\x1b[1m\x1b[38;2;147;197;253mOverview\x1b[0m"},
+		{name: "header", got: style.Header("Metric"), want: "\x1b[1m\x1b[38;2;186;230;253mMetric\x1b[0m"},
+		{name: "label", got: style.Label("Scope"), want: "\x1b[38;2;165;180;252mScope\x1b[0m"},
+		{name: "metric", got: style.Metric("42"), want: "\x1b[38;2;203;213;225m42\x1b[0m"},
+		{name: "warn", got: style.Warn("Excluded Generated"), want: "\x1b[38;2;253;224;71mExcluded Generated\x1b[0m"},
+		{name: "bad", got: style.Bad("-12"), want: "\x1b[38;2;252;165;165m-12\x1b[0m"},
+		{name: "muted", got: style.Muted("note"), want: "\x1b[38;2;148;163;184mnote\x1b[0m"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.got != tt.want {
+				t.Fatalf("%s = %q, want %q", tt.name, tt.got, tt.want)
+			}
+		})
+	}
+}
+
 func TestResolveFallsBackToANSI(t *testing.T) {
 	style := color.Resolve(color.Request{Mode: "auto", Environ: []string{"TERM=xterm-256color"}})
 	if style.Level() != color.LevelANSI {
