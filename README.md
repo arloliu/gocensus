@@ -81,6 +81,8 @@ Ratios
 | `gocensus files [root]` | Show file-level classification and line counts. |
 | `gocensus tests [root]` | Summarize tests, subtests, benchmarks, and examples. |
 | `gocensus who [root]` | Rank contributors from Git history. |
+| `gocensus diff [root]` | Compare scan metrics between two Git refs. |
+| `gocensus hotspots [root]` | Rank human-authored Go file hotspots by size and Git churn. |
 | `gocensus version` | Print the CLI version. |
 
 Use command-specific help to see flags:
@@ -159,9 +161,23 @@ Rank contributors by removed lines:
 gocensus who . --go-only --by removed
 ```
 
+Compare scan metrics between two refs:
+
+```bash
+gocensus diff . --base v0.1.0 --head HEAD
+gocensus diff . --base main --head feature/my-change -f markdown -o diff.md
+```
+
+Rank file hotspots by current size plus Git churn:
+
+```bash
+gocensus hotspots . --since 90.days
+gocensus hotspots . --by churn -n 20
+```
+
 ## Output Formats
 
-`scan` and `report` support:
+`scan`, `report`, `diff`, `hotspots`, and `who` support:
 
 - `table`
 - `json`
@@ -209,6 +225,10 @@ Global analysis flags:
 | Test Share | Effective test lines divided by production plus test effective lines. |
 | Known Test Cases | Top-level tests plus statically countable subtests. |
 | Dynamic Subtest Sites | `t.Run` or `b.Run` call sites where runtime data controls the case count. |
+| Hotspot Score | Effective production lines plus Git churn. |
+| Git Churn | Added plus removed lines from `git log --numstat`. |
+| Package Test Ratio | Package test effective lines divided by package production effective lines. |
+| Diff Delta | Head value minus base value. Positive values are shown with `+` in table output. |
 
 ## Test Inventory
 
@@ -237,6 +257,12 @@ Dynamic subtest sites are reported separately because their runtime case count i
 
 `gocensus who` reads Git history for all tracked files under the requested root. It combines factual Git diffstat metrics with transparent commit-message heuristics.
 
+Use `--exclude-generated` and `--exclude-mocks` to remove generated or mock paths across all tracked file types:
+
+```bash
+gocensus who . --exclude-generated --exclude-mocks
+```
+
 Use `--go-only` for the recommended human-authored Go contribution view. That mode includes `*.go` paths and excludes generated and mock Go paths by default. Add generated or mock Go paths back explicitly:
 
 ```bash
@@ -244,7 +270,7 @@ gocensus who . --go-only --include-generated
 gocensus who . --go-only --include-mocks
 ```
 
-Go-only filtering is path-based so it works across historical commits, including files that were later deleted. It does not inspect old file contents for generated-code comments.
+Contribution path filtering is path-based so it works across historical commits, including files that were later deleted. It does not inspect old file contents for generated-code comments.
 
 Ranking choices:
 

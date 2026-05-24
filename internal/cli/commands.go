@@ -1,11 +1,15 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/arloliu/gocensus"
 	"github.com/arloliu/gocensus/internal/color"
 	"github.com/arloliu/gocensus/internal/contrib"
+	censusdiff "github.com/arloliu/gocensus/internal/diff"
+	"github.com/arloliu/gocensus/internal/gitrepo"
+	"github.com/arloliu/gocensus/internal/hotspot"
 )
 
 type commandLine struct {
@@ -20,6 +24,8 @@ type commandLine struct {
 	Files    filesCmd    `cmd:"" help:"Show file-level classification and line counts."`
 	Tests    testsCmd    `cmd:"" help:"Summarize tests, subtests, benchmarks, and examples."`
 	Who      whoCmd      `cmd:"" help:"Rank contributors from Git history."`
+	Diff     diffCmd     `cmd:"" help:"Compare Go census metrics between two Git refs."`
+	Hotspots hotspotsCmd `cmd:"" help:"Rank human-authored Go file hotspots by size and Git churn."`
 	Version  versionCmd  `cmd:"" help:"Print the gocensus version."`
 }
 
@@ -62,11 +68,31 @@ type testsCmd struct {
 
 type whoCmd struct {
 	rootArg
-	GoOnly bool   `name:"go-only" help:"Rank human-authored Go paths only: *.go with generated and mock paths excluded unless --include-generated or --include-mocks is set."`
-	By     string `name:"by" enum:"commits,features,fixes,refactors,added,removed,net,shrink,churn,files,active-days" default:"commits" help:"Rank by commits, features, fixes, refactors, added, removed, net, shrink, churn, files, or active-days."`
-	Top    int    `short:"n" default:"10" help:"Maximum number of contributors to print; use 0 for all contributors."`
-	Since  string `name:"since" placeholder:"DATE" help:"Only include commits after this date or Git revision expression."`
-	Until  string `name:"until" placeholder:"DATE" help:"Only include commits before this date or Git revision expression."`
+	GoOnly           bool   `name:"go-only" help:"Rank human-authored Go paths only: *.go with generated and mock paths excluded unless --include-generated or --include-mocks is set."`
+	ExcludeGenerated bool   `name:"exclude-generated" help:"Exclude generated paths from contributor rankings across all tracked file types."`
+	ExcludeMocks     bool   `name:"exclude-mocks" help:"Exclude mock paths from contributor rankings across all tracked file types."`
+	By               string `name:"by" enum:"commits,features,fixes,refactors,added,removed,net,shrink,churn,files,active-days" default:"commits" help:"Rank by commits, features, fixes, refactors, added, removed, net, shrink, churn, files, or active-days."`
+	Top              int    `short:"n" default:"10" help:"Maximum number of contributors to print; use 0 for all contributors."`
+	Since            string `name:"since" placeholder:"DATE" help:"Only include commits after this date or Git revision expression."`
+	Until            string `name:"until" placeholder:"DATE" help:"Only include commits before this date or Git revision expression."`
+	Format           string `short:"f" enum:"table,json,markdown" default:"table" help:"Output format: table, json, or markdown."`
+	Output           string `short:"o" placeholder:"PATH" help:"Write output to file instead of stdout."`
+}
+
+type diffCmd struct {
+	rootArg
+	Base   string `name:"base" default:"HEAD~1" placeholder:"REF" help:"Base Git ref to analyze."`
+	Head   string `name:"head" default:"HEAD" placeholder:"REF" help:"Head Git ref to analyze."`
+	Format string `short:"f" enum:"table,json,markdown" default:"table" help:"Output format: table, json, or markdown."`
+	Output string `short:"o" placeholder:"PATH" help:"Write output to file instead of stdout."`
+}
+
+type hotspotsCmd struct {
+	rootArg
+	By     string `name:"by" enum:"score,lines,churn,commits,test-ratio" default:"score" help:"Sort by score, lines, churn, commits, or test-ratio."`
+	Top    int    `short:"n" default:"20" help:"Maximum number of files to print; use 0 for all files."`
+	Since  string `name:"since" placeholder:"DATE" help:"Only include Git churn after this date or Git revision expression."`
+	Until  string `name:"until" placeholder:"DATE" help:"Only include Git churn before this date or Git revision expression."`
 	Format string `short:"f" enum:"table,json,markdown" default:"table" help:"Output format: table, json, or markdown."`
 	Output string `short:"o" placeholder:"PATH" help:"Write output to file instead of stdout."`
 }
@@ -94,7 +120,15 @@ func (cmd testsCmd) Help() string {
 }
 
 func (cmd whoCmd) Help() string {
-	return "Rank Git authors by commit count, message-classified feature/fix/refactor work, added and removed lines, net change, churn, files touched, and active days. By default this uses all Git-tracked files. Use --go-only for the recommended human-authored Go view; with --go-only, --include-generated and --include-mocks add generated or mock Go paths back into the result."
+	return "Rank Git authors by commit count, message-classified feature/fix/refactor work, added and removed lines, net change, churn, files touched, and active days. By default this uses all Git-tracked files. Use --exclude-generated and --exclude-mocks to remove generated or mock paths across all tracked file types. Use --go-only for the recommended human-authored Go view; with --go-only, --include-generated and --include-mocks add generated or mock Go paths back into the result."
+}
+
+func (cmd diffCmd) Help() string {
+	return "Compare scan metrics between two Git refs without mutating the working tree. Scope follows scan: generated and mock files are excluded from production totals unless --include-generated or --include-mocks is set."
+}
+
+func (cmd hotspotsCmd) Help() string {
+	return "Rank human-authored production Go files by effective lines plus Git churn. Test files, generated files, and mock files are excluded by default; --include-generated and --include-mocks add those production-scope files back into the report."
 }
 
 func (cmd versionCmd) Help() string {
@@ -149,6 +183,8 @@ func (cmd *whoCmd) Run(cli *commandLine, rt *runtime) error {
 		GoOnly:           cmd.GoOnly,
 		IncludeGenerated: cli.IncludeGenerated,
 		IncludeMocks:     cli.IncludeMocks,
+		ExcludeGenerated: cmd.ExcludeGenerated,
+		ExcludeMocks:     cmd.ExcludeMocks,
 	})
 	if err != nil {
 		return err
@@ -162,6 +198,64 @@ func (cmd *whoCmd) Run(cli *commandLine, rt *runtime) error {
 	}
 	report.Contributors = ranked
 	return renderWho(rt.stdout, report, cmd.By, cmd.Format, cmd.Output, cli.style(rt))
+}
+
+func (cmd *diffCmd) Run(cli *commandLine, rt *runtime) error {
+	baseRoot, cleanupBase, err := gitrepo.Archive(rt.ctx, cmd.Root, cmd.Base)
+	if err != nil {
+		return err
+	}
+	defer cleanupBase()
+	headRoot, cleanupHead, err := gitrepo.Archive(rt.ctx, cmd.Root, cmd.Head)
+	if err != nil {
+		return err
+	}
+	defer cleanupHead()
+
+	baseResult, err := analyze(rt, baseRoot, cli.analysisFlags)
+	if err != nil {
+		return err
+	}
+	headResult, err := analyze(rt, headRoot, cli.analysisFlags)
+	if err != nil {
+		return err
+	}
+	repoRoot, err := gitrepo.Root(rt.ctx, cmd.Root)
+	if err != nil {
+		return err
+	}
+	report := censusdiff.Compare(censusdiff.Options{
+		Root:  repoRoot,
+		Base:  cmd.Base,
+		Head:  cmd.Head,
+		Scope: headResult.Scope,
+	}, baseResult, headResult)
+	return renderDiff(rt.stdout, report, cmd.Format, cmd.Output, cli.style(rt))
+}
+
+func (cmd *hotspotsCmd) Run(cli *commandLine, rt *runtime) error {
+	result, err := analyze(rt, cmd.Root, cli.analysisFlags)
+	if err != nil {
+		return err
+	}
+	numstat, err := gitrepo.Numstat(rt.ctx, cmd.Root, cmd.Since, cmd.Until)
+	if err != nil {
+		return err
+	}
+	churn, err := hotspot.ParseNumstat(bytes.NewReader(numstat))
+	if err != nil {
+		return err
+	}
+	report, err := hotspot.Rank(result, churn, hotspot.Options{
+		By:               cmd.By,
+		Top:              cmd.Top,
+		IncludeGenerated: cli.IncludeGenerated,
+		IncludeMocks:     cli.IncludeMocks,
+	})
+	if err != nil {
+		return err
+	}
+	return renderHotspots(rt.stdout, report, cmd.Format, cmd.Output, cli.style(rt))
 }
 
 func (cmd *versionCmd) Run(rt *runtime) error {

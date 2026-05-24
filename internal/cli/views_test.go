@@ -207,6 +207,133 @@ func TestRunTestsColorAlwaysPrintsSGR(t *testing.T) {
 	}
 }
 
+func TestRunDiffComparesGitRefs(t *testing.T) {
+	dir := writeGitRepo(t)
+	writeFile(t, dir, "go.mod", "module example.com/app\n\ngo 1.21\n")
+	writeFile(t, dir, "main.go", "package main\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Author One", "one@example.com", "2026-01-03T12:00:00Z", "feat: initial")
+	runGit(t, dir, "tag", "base")
+	writeFile(t, dir, "main.go", "package main\n\nfunc NewFeature() {}\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Author Two", "two@example.com", "2026-01-04T12:00:00Z", "feat: expand")
+	runGit(t, dir, "tag", "head")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"diff", dir, "--base", "base", "--head", "head"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	output := stdout.String()
+	for _, want := range []string{"Diff:", "Base: base", "Head: head", "Scope:", "Production Effective", "+"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout = %q, want %q", output, want)
+		}
+	}
+}
+
+func TestRunDiffColorAlwaysPrintsSGR(t *testing.T) {
+	dir := writeGitRepo(t)
+	writeFile(t, dir, "go.mod", "module example.com/app\n\ngo 1.21\n")
+	writeFile(t, dir, "main.go", "package main\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Author One", "one@example.com", "2026-01-03T12:00:00Z", "feat: initial")
+	runGit(t, dir, "tag", "base")
+	writeFile(t, dir, "main.go", "package main\n\nfunc NewFeature() {}\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Author Two", "two@example.com", "2026-01-04T12:00:00Z", "feat: expand")
+	runGit(t, dir, "tag", "head")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"diff", dir, "--base", "base", "--head", "head", "--color", "always"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\x1b[38;2;") {
+		t.Fatalf("stdout = %q, want RGB SGR", stdout.String())
+	}
+}
+
+func TestRunHotspotsRanksProductionFiles(t *testing.T) {
+	dir := writeGitRepo(t)
+	writeFile(t, dir, "go.mod", "module example.com/app\n\ngo 1.21\n")
+	writeFile(t, dir, "small.go", "package main\n")
+	writeFile(t, dir, "large.go", "package main\n\nfunc One() {}\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Author One", "one@example.com", "2026-01-03T12:00:00Z", "feat: initial")
+	writeFile(t, dir, "large.go", "package main\n\nfunc One() {}\n\nfunc Two() {}\n\nfunc Three() {}\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Author Two", "two@example.com", "2026-01-04T12:00:00Z", "feat: expand")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"hotspots", dir, "-n", "1"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	output := stdout.String()
+	for _, want := range []string{"Hotspots:", "Scope:", "Sorted by: score", "Score", "Eff Lines", "Churn", "large.go"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout = %q, want %q", output, want)
+		}
+	}
+	if strings.Contains(output, "small.go") {
+		t.Fatalf("stdout = %q, did not want small.go when top is 1", output)
+	}
+}
+
+func TestRunHotspotsColorAlwaysPrintsSGR(t *testing.T) {
+	dir := writeGitRepo(t)
+	writeFile(t, dir, "go.mod", "module example.com/app\n\ngo 1.21\n")
+	writeFile(t, dir, "main.go", "package main\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Author One", "one@example.com", "2026-01-03T12:00:00Z", "feat: initial")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"hotspots", dir, "--color", "always"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\x1b[38;2;") {
+		t.Fatalf("stdout = %q, want RGB SGR", stdout.String())
+	}
+}
+
+func TestRunHotspotsCanIncludeGeneratedAndMocks(t *testing.T) {
+	dir := writeGitRepo(t)
+	writeFile(t, dir, "go.mod", "module example.com/app\n\ngo 1.21\n")
+	writeFile(t, dir, "main.go", "package main\n")
+	writeFile(t, dir, "service.pb.go", "package main\n\nfunc GeneratedOne() {}\n\nfunc GeneratedTwo() {}\n")
+	writeFile(t, dir, "mock_client.go", "package main\n\nfunc MockOne() {}\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Author One", "one@example.com", "2026-01-03T12:00:00Z", "feat: initial")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"hotspots", dir, "--include-generated", "--include-mocks", "-n", "0"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	output := stdout.String()
+	for _, want := range []string{
+		"Scope: production includes generated and mock files",
+		"service.pb.go",
+		"mock_client.go",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout = %q, want %q", output, want)
+		}
+	}
+}
+
 func TestRunWhoRanksContributorsByRemovedLines(t *testing.T) {
 	dir := writeGitRepo(t)
 	writeFile(t, dir, "app.txt", "one\ntwo\nthree\n")
@@ -328,6 +455,41 @@ func TestRunWhoGoOnlyCanIncludeGeneratedAndMocks(t *testing.T) {
 	}
 	if strings.Contains(output, "Dan") {
 		t.Fatalf("stdout = %q, did not want Dan", output)
+	}
+}
+
+func TestRunWhoCanExcludeGeneratedAndMocksAcrossAllTrackedFiles(t *testing.T) {
+	dir := writeGitRepo(t)
+	writeFile(t, dir, "README.md", "docs\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Alice", "alice@example.com", "2026-01-03T12:00:00Z", "docs: add readme")
+	writeFile(t, dir, "docs/generated/report.md", "generated report\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Bob", "bob@example.com", "2026-01-04T12:00:00Z", "docs: add generated report")
+	writeFile(t, dir, "fixtures/mock_payload.json", "{}\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Carol", "carol@example.com", "2026-01-05T12:00:00Z", "test: add mock payload")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"who", dir, "--exclude-generated", "--exclude-mocks", "-n", "0"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	output := stdout.String()
+	for _, want := range []string{
+		"Scope: all Git-tracked files, generated and mock paths excluded",
+		"Alice",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout = %q, want %q", output, want)
+		}
+	}
+	for _, notWant := range []string{"Bob", "Carol"} {
+		if strings.Contains(output, notWant) {
+			t.Fatalf("stdout = %q, did not want %q", output, notWant)
+		}
 	}
 }
 

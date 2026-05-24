@@ -6,19 +6,24 @@ import (
 )
 
 func keepPath(path string, opts ParseOptions) bool {
-	if !opts.GoOnly {
-		return true
-	}
-	if !strings.HasSuffix(strings.ToLower(path), ".go") {
+	if opts.GoOnly && !strings.HasSuffix(strings.ToLower(path), ".go") {
 		return false
 	}
-	if !opts.IncludeGenerated && isGeneratedPath(path) {
+	if excludeGenerated(opts) && isGeneratedPath(path) {
 		return false
 	}
-	if !opts.IncludeMocks && isMockPath(path) {
+	if excludeMocks(opts) && isMockPath(path) {
 		return false
 	}
 	return true
+}
+
+func excludeGenerated(opts ParseOptions) bool {
+	return opts.ExcludeGenerated || (opts.GoOnly && !opts.IncludeGenerated)
+}
+
+func excludeMocks(opts ParseOptions) bool {
+	return opts.ExcludeMocks || (opts.GoOnly && !opts.IncludeMocks)
 }
 
 func isGeneratedPath(path string) bool {

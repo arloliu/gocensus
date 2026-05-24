@@ -21,6 +21,8 @@ func TestRunRootHelpIncludesCommandsAndCommonFlags(t *testing.T) {
 	for _, want := range []string{
 		"Usage:",
 		"scan",
+		"diff",
+		"hotspots",
 		"tests",
 		"--no-gitignore",
 		"-x, --exclude",
@@ -100,10 +102,37 @@ func TestRunAllSubcommandHelpIsSelfExplaining(t *testing.T) {
 			},
 		},
 		{
+			command: "diff",
+			wants: []string{
+				"Compare scan metrics",
+				"--base",
+				"--head",
+				"--include-generated",
+				"--include-mocks",
+				"generated",
+				"mock",
+			},
+		},
+		{
+			command: "hotspots",
+			wants: []string{
+				"human-authored production Go files",
+				"--by",
+				"--since",
+				"--until",
+				"--include-generated",
+				"--include-mocks",
+				"generated",
+				"mock",
+			},
+		},
+		{
 			command: "who",
 			wants: []string{
 				"Git authors",
 				"--go-only",
+				"--exclude-generated",
+				"--exclude-mocks",
 				"--by",
 				"--since",
 				"--until",
