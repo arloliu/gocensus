@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## v0.3.0 - 2026-05-25
+
+### Added
+
+- Add terminal color support for human-readable table output, with `--color` and `--no-color` controls.
+- Add `gocensus diff` for comparing scan metrics between two Git refs without mutating the working tree.
+- Add `gocensus hotspots` for ranking production Go file hotspots by effective lines plus Git churn.
+- Add table, JSON, Markdown, and `--output` support for `diff` and `hotspots`.
+- Add internal Git archive, diff, and hotspot analysis packages.
+
+### Changed
+
+- Soften the RGB terminal color palette for better readability.
+- Make `gocensus who` follow scan-style generated/mock defaults: generated and mock paths are excluded by default and can be included with `--include-generated` or `--include-mocks`.
+- Update README documentation for `diff`, `hotspots`, color output, and contributor-ranking scope behavior.
+
 ## v0.2.0 - 2026-05-24
 
 ### Added
