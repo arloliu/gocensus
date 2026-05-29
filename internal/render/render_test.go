@@ -18,7 +18,7 @@ func TestTableIncludesCoreSections(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := `Go Census: example.com/app
-Scope: production excludes generated and mock files
+Scope: production excludes generated and mock files; testdata directories excluded
 
 Overview
   Go files: 15    Packages: 1    Known test cases: 59
@@ -49,7 +49,7 @@ Test Inventory
 Notes
   Raw Lines            Physical lines, including blanks and comments.
   Effective Lines      Lines containing non-comment Go tokens.
-  Production Scope     Non-test Go files counted as production; scope line shows generated/mock inclusion.
+  Production Scope     Non-test Go files counted as production; scope line shows generated/mock/testdata inclusion.
   Tests                *_test.go files.
   Known Cases          Top-level tests plus statically countable subtests.
   Static Subtests      t.Run/b.Run cases with statically countable case data.
@@ -109,7 +109,7 @@ func TestMarkdownIncludesPackageTable(t *testing.T) {
 	if !strings.Contains(text, "| Package | Prod Lines | Test Lines | Test Ratio |") {
 		t.Fatalf("markdown missing package table:\n%s", text)
 	}
-	if !strings.Contains(text, "Scope: production excludes generated and mock files") {
+	if !strings.Contains(text, "Scope: production excludes generated and mock files; testdata directories excluded") {
 		t.Fatalf("markdown missing scope:\n%s", text)
 	}
 }
@@ -136,7 +136,7 @@ func sample() gocensus.Result {
 	return gocensus.Result{
 		Root:       "/repo",
 		ModulePath: "example.com/app",
-		Scope:      "production excludes generated and mock files",
+		Scope:      "production excludes generated and mock files; testdata directories excluded",
 		Files:      gocensus.FileCounts{Total: 15, Production: 8, Tests: 7, Generated: 2, Mocks: 1},
 		Lines: gocensus.LineCounts{
 			Production: gocensus.Metric{Raw: 1192, Effective: 1012},

@@ -50,6 +50,7 @@ func Analyze(ctx context.Context, opts Options) (Report, error) {
 		GoOnly:           opts.GoOnly,
 		IncludeGenerated: opts.IncludeGenerated,
 		IncludeMocks:     opts.IncludeMocks,
+		IncludeTestdata:  opts.IncludeTestdata,
 	}
 	report, err := ParseLogWithOptions(bytes.NewReader(output), parseOpts)
 	if err != nil {

@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+### Changed
+
+- Exclude Go `testdata/` fixture directories from scan/report analysis by default, with `--include-testdata` to include them explicitly.
+
 ## v0.3.0 - 2026-05-25
 
 ### Added

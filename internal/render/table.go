@@ -122,7 +122,7 @@ func table(w io.Writer, result gocensus.Result, style color.Style) error {
 	}{
 		{field: "Raw Lines", text: "Physical lines, including blanks and comments."},
 		{field: "Effective Lines", text: "Lines containing non-comment Go tokens."},
-		{field: "Production Scope", text: "Non-test Go files counted as production; scope line shows generated/mock inclusion."},
+		{field: "Production Scope", text: "Non-test Go files counted as production; scope line shows generated/mock/testdata inclusion."},
 		{field: "Tests", text: "*_test.go files."},
 		{field: "Known Cases", text: "Top-level tests plus statically countable subtests."},
 		{field: "Static Subtests", text: "t.Run/b.Run cases with statically countable case data."},

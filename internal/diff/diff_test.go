@@ -29,7 +29,7 @@ func TestCompareComputesRepositoryDeltas(t *testing.T) {
 		Root:  "/repo",
 		Base:  "v1",
 		Head:  "v2",
-		Scope: "production excludes generated and mock files",
+		Scope: "production excludes generated and mock files; testdata directories excluded",
 	}, base, head)
 
 	if report.Root != "/repo" || report.Base != "v1" || report.Head != "v2" {

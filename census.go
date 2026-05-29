@@ -21,6 +21,7 @@ type Options struct {
 	ExtraExcludes    []string
 	IncludeGenerated bool
 	IncludeMocks     bool
+	IncludeTestdata  bool
 }
 
 // Result contains repository census metrics.
@@ -135,9 +136,10 @@ func Analyze(ctx context.Context, opts Options) (Result, error) {
 	}
 
 	files, err := discover.GoFiles(ctx, discover.Options{
-		Root:          absRoot,
-		UseGitignore:  !opts.NoGitignore,
-		ExtraExcludes: opts.ExtraExcludes,
+		Root:            absRoot,
+		UseGitignore:    !opts.NoGitignore,
+		ExtraExcludes:   opts.ExtraExcludes,
+		IncludeTestdata: opts.IncludeTestdata,
 	})
 	if err != nil {
 		return Result{}, err
@@ -181,16 +183,21 @@ func Analyze(ctx context.Context, opts Options) (Result, error) {
 }
 
 func scanScope(opts Options) string {
+	var production string
 	switch {
 	case opts.IncludeGenerated && opts.IncludeMocks:
-		return "production includes generated and mock files"
+		production = "production includes generated and mock files"
 	case opts.IncludeGenerated:
-		return "production includes generated files and excludes mock files"
+		production = "production includes generated files and excludes mock files"
 	case opts.IncludeMocks:
-		return "production excludes generated files and includes mock files"
+		production = "production excludes generated files and includes mock files"
 	default:
-		return "production excludes generated and mock files"
+		production = "production excludes generated and mock files"
 	}
+	if opts.IncludeTestdata {
+		return production + "; testdata directories included"
+	}
+	return production + "; testdata directories excluded"
 }
 
 func buildResult(root string, modulePath string, fileMetrics []FileMetric, opts Options) Result {

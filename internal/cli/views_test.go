@@ -410,6 +410,7 @@ func TestRunWhoGoOnlyDefaultsToHumanAuthoredGo(t *testing.T) {
 	for _, want := range []string{
 		"Scope: human-authored Go files",
 		"generated and mock paths excluded",
+		"testdata paths excluded",
 		"Feature/Fix/Refactor: commit-message heuristics",
 		"Line metrics: git log --numstat",
 		"Alice",
@@ -469,6 +470,9 @@ func TestRunWhoExcludesGeneratedAndMocksByDefault(t *testing.T) {
 	writeFile(t, dir, "fixtures/mock_payload.json", "{}\n")
 	runGit(t, dir, "add", ".")
 	commitGit(t, dir, "Carol", "carol@example.com", "2026-01-05T12:00:00Z", "test: add mock payload")
+	writeFile(t, dir, "testdata/fixture.go", "package fixture\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Eve", "eve@example.com", "2026-01-06T12:00:00Z", "test: add testdata fixture")
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
@@ -479,16 +483,44 @@ func TestRunWhoExcludesGeneratedAndMocksByDefault(t *testing.T) {
 	}
 	output := stdout.String()
 	for _, want := range []string{
-		"Scope: all Git-tracked files, generated and mock paths excluded",
+		"Scope: all Git-tracked files, generated and mock paths excluded; testdata paths excluded",
 		"Alice",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("stdout = %q, want %q", output, want)
 		}
 	}
-	for _, notWant := range []string{"Bob", "Carol"} {
+	for _, notWant := range []string{"Bob", "Carol", "Eve"} {
 		if strings.Contains(output, notWant) {
 			t.Fatalf("stdout = %q, did not want %q", output, notWant)
+		}
+	}
+}
+
+func TestRunWhoCanIncludeTestdataAcrossAllTrackedFiles(t *testing.T) {
+	dir := writeGitRepo(t)
+	writeFile(t, dir, "README.md", "docs\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Alice", "alice@example.com", "2026-01-03T12:00:00Z", "docs: add readme")
+	writeFile(t, dir, "testdata/fixture.go", "package fixture\n")
+	runGit(t, dir, "add", ".")
+	commitGit(t, dir, "Eve", "eve@example.com", "2026-01-04T12:00:00Z", "test: add testdata fixture")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"who", dir, "--include-testdata", "-n", "0"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	output := stdout.String()
+	for _, want := range []string{
+		"Scope: all Git-tracked files, generated and mock paths excluded; testdata paths included",
+		"Alice",
+		"Eve",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout = %q, want %q", output, want)
 		}
 	}
 }
@@ -514,7 +546,7 @@ func TestRunWhoCanIncludeGeneratedAndMocksAcrossAllTrackedFiles(t *testing.T) {
 	}
 	output := stdout.String()
 	for _, want := range []string{
-		"Scope: all Git-tracked files, including generated and mock paths",
+		"Scope: all Git-tracked files, including generated and mock paths; testdata paths excluded",
 		"Alice",
 		"Bob",
 		"Carol",

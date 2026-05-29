@@ -18,6 +18,7 @@ func TestGoFilesRespectsDefaultExcludesAndGitignore(t *testing.T) {
 	write(t, root, "ignored.go", "package main\n")
 	write(t, root, "vendor/lib/lib.go", "package lib\n")
 	write(t, root, ".hidden/hidden.go", "package hidden\n")
+	write(t, root, "testdata/fixture.go", "package fixture\n")
 	write(t, root, "nested/keep.go", "package nested\n")
 	write(t, root, "nested/ignored_dir/drop.go", "package ignored\n")
 
@@ -52,6 +53,27 @@ func TestGoFilesCanDisableGitignore(t *testing.T) {
 
 	got := rels(t, root, files)
 	want := []string{"ignored.go", "main.go"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("files = %#v, want %#v", got, want)
+	}
+}
+
+func TestGoFilesCanIncludeTestdata(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "main.go", "package main\n")
+	write(t, root, "testdata/fixture.go", "package fixture\n")
+
+	files, err := discover.GoFiles(context.Background(), discover.Options{
+		Root:            root,
+		UseGitignore:    true,
+		IncludeTestdata: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := rels(t, root, files)
+	want := []string{"main.go", "testdata/fixture.go"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("files = %#v, want %#v", got, want)
 	}

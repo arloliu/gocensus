@@ -11,7 +11,7 @@ import (
 func TestRankFiltersToProductionFilesAndScoresWithChurn(t *testing.T) {
 	result := gocensus.Result{
 		Root:  "/repo",
-		Scope: "production excludes generated and mock files",
+		Scope: "production excludes generated and mock files; testdata directories excluded",
 		FileMetrics: []gocensus.FileMetric{
 			{Path: "main.go", Package: "example.com/app", Kind: "production", CodeLines: 100},
 			{Path: "main_test.go", Package: "example.com/app", Kind: "test", CodeLines: 200},
@@ -57,7 +57,7 @@ func TestRankFiltersToProductionFilesAndScoresWithChurn(t *testing.T) {
 func TestRankCanIncludeGeneratedAndMockProductionScopeFiles(t *testing.T) {
 	result := gocensus.Result{
 		Root:  "/repo",
-		Scope: "production includes generated and mock files",
+		Scope: "production includes generated and mock files; testdata directories excluded",
 		FileMetrics: []gocensus.FileMetric{
 			{Path: "main.go", Package: "example.com/app", Kind: "production", CodeLines: 100},
 			{Path: "service.pb.go", Package: "example.com/app", Kind: "generated", CodeLines: 300},

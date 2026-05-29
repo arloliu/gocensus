@@ -127,6 +127,8 @@ func TestParseLogWithOptionsExcludesGeneratedAndMocksByDefault(t *testing.T) {
 		"100\t0\tdocs/generated/report.md",
 		"\x1ebbb\x1fBob\x1fbob@example.com\x1f2026-01-04\x1ffeat: add mock fixture",
 		"20\t0\tfixtures/mock_payload.json",
+		"\x1eeee\x1fEve\x1feve@example.com\x1f2026-01-07\x1ftest: add testdata fixture",
+		"11\t0\ttestdata/fixture.go",
 		"\x1eccc\x1fCarol\x1fcarol@example.com\x1f2026-01-05\x1ffeat: add docs",
 		"5\t0\tREADME.md",
 		"\x1eddd\x1fDan\x1fdan@example.com\x1f2026-01-06\x1ffeat: add source",
@@ -140,6 +142,26 @@ func TestParseLogWithOptionsExcludesGeneratedAndMocksByDefault(t *testing.T) {
 
 	if got := names(report.Contributors); strings.Join(got, ",") != "Carol,Dan" {
 		t.Fatalf("contributors = %v, want Carol,Dan", got)
+	}
+}
+
+func TestParseLogWithOptionsCanIncludeTestdata(t *testing.T) {
+	input := strings.Join([]string{
+		"\x1eaaa\x1fAlice\x1falice@example.com\x1f2026-01-03\x1ftest: add testdata fixture",
+		"11\t0\ttestdata/fixture.go",
+		"\x1ebbb\x1fBob\x1fbob@example.com\x1f2026-01-04\x1ffeat: add source",
+		"7\t1\tinternal/app/main.go",
+	}, "\n")
+
+	report, err := contrib.ParseLogWithOptions(strings.NewReader(input), contrib.ParseOptions{
+		IncludeTestdata: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := names(report.Contributors); strings.Join(got, ",") != "Alice,Bob" {
+		t.Fatalf("contributors = %v, want Alice,Bob", got)
 	}
 }
 

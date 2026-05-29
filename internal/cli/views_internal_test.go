@@ -15,7 +15,7 @@ func TestRenderDiffTableIsSelfExplaining(t *testing.T) {
 		Root:  "example.com/app",
 		Base:  "base",
 		Head:  "head",
-		Scope: "production excludes generated and mock files",
+		Scope: "production excludes generated and mock files; testdata directories excluded",
 		Summary: censusdiff.Summary{
 			TotalFiles:          censusdiff.IntDelta{Base: 1, Head: 2, Delta: 1},
 			ProductionFiles:     censusdiff.IntDelta{Base: 1, Head: 2, Delta: 1},
@@ -42,7 +42,7 @@ func TestRenderDiffTableIsSelfExplaining(t *testing.T) {
 func TestRenderHotspotsTableIsSelfExplaining(t *testing.T) {
 	report := hotspot.Report{
 		Root:   "example.com/app",
-		Scope:  "human-authored production Go files (*.go, generated and mock paths excluded)",
+		Scope:  "human-authored production Go files (*.go, generated and mock paths excluded; testdata paths excluded)",
 		SortBy: hotspot.SortScore,
 		Notes: []string{
 			"Hotspot Score = effective production lines + Git churn.",

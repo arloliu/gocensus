@@ -13,9 +13,10 @@ import (
 
 // Options controls Go source file discovery.
 type Options struct {
-	Root          string
-	UseGitignore  bool
-	ExtraExcludes []string
+	Root            string
+	UseGitignore    bool
+	ExtraExcludes   []string
+	IncludeTestdata bool
 }
 
 // GoFiles returns Go source files under Root after applying built-in excludes
@@ -53,7 +54,7 @@ func GoFiles(ctx context.Context, opts Options) ([]string, error) {
 		}
 		rel = filepath.ToSlash(rel)
 
-		if entry.IsDir() && isHardExcludedDir(entry.Name()) {
+		if entry.IsDir() && isHardExcludedDir(entry.Name(), opts.IncludeTestdata) {
 			return filepath.SkipDir
 		}
 		if matcher.match(rel, entry.IsDir()) {
@@ -93,7 +94,7 @@ func buildMatcher(root string, opts Options) (matcher, error) {
 			if walkErr != nil {
 				return walkErr
 			}
-			if entry.IsDir() && filePath != root && isHardExcludedDir(entry.Name()) {
+			if entry.IsDir() && filePath != root && isHardExcludedDir(entry.Name(), opts.IncludeTestdata) {
 				return filepath.SkipDir
 			}
 			if entry.IsDir() || entry.Name() != ".gitignore" {
@@ -214,9 +215,12 @@ func cleanDomain(relDir string) string {
 	return relDir
 }
 
-func isHardExcludedDir(name string) bool {
+func isHardExcludedDir(name string, includeTestdata bool) bool {
 	if name == ".git" || name == "vendor" || name == "node_modules" {
 		return true
+	}
+	if name == "testdata" {
+		return !includeTestdata
 	}
 	return strings.HasPrefix(name, ".")
 }

@@ -11,7 +11,7 @@ import (
 func TestRenderWhoTableAlignsWideNumbers(t *testing.T) {
 	report := contrib.Report{
 		Root:  "/repo",
-		Scope: "human-authored Go files (*.go, generated and mock paths excluded)",
+		Scope: "human-authored Go files (*.go, generated and mock paths excluded; testdata paths excluded)",
 		Notes: []string{
 			"Feature, fix, and refactor counts are commit-message heuristics.",
 			"Line, file, commit, and active-day counts come from git log --numstat.",
@@ -53,7 +53,7 @@ func TestRenderWhoTableAlignsWideNumbers(t *testing.T) {
 
 	want := "" +
 		"Who: /repo\n" +
-		"Scope: human-authored Go files (*.go, generated and mock paths excluded)\n" +
+		"Scope: human-authored Go files (*.go, generated and mock paths excluded; testdata paths excluded)\n" +
 		"Sorted by: commits\n\n" +
 		"  Author        Commits  Feat  Fix  Refactor    Added  Removed      Net    Churn  Files  Active Days\n" +
 		"  ASCII_AUTHOR      622   360  104       134  320,742  133,589  187,153  454,331  2,615          236\n" +

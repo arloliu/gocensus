@@ -53,7 +53,7 @@ Example output:
 
 ```text
 Go Census: github.com/arloliu/gocensus
-Scope: production excludes generated and mock files
+Scope: production excludes generated and mock files; testdata directories excluded
 
 Overview
   Go files: 24    Packages: 13    Known test cases: 46
@@ -195,13 +195,14 @@ Human-readable terminal output uses color automatically when the terminal advert
 
 ## Ignore and Bucket Options
 
-`gocensus` reads `.gitignore` by default.
+`gocensus` reads `.gitignore` by default and skips Go tool support directories such as `vendor/`, `.git/`, and `testdata/`; use `--include-testdata` to include Go files under `testdata/`.
 
 ```bash
 gocensus scan . --no-gitignore
 gocensus scan . -x 'internal/generated/**'
 gocensus scan . --include-generated
 gocensus scan . --include-mocks
+gocensus scan . --include-testdata
 ```
 
 Global analysis flags:
@@ -212,6 +213,7 @@ Global analysis flags:
 | `-x, --exclude PATTERN` | Exclude paths matching a pattern. Can be repeated. |
 | `--include-generated` | Count generated files as production code for scan/report views and include generated paths in contributor rankings. |
 | `--include-mocks` | Count mock files as production code for scan/report views and include mock paths in contributor rankings. |
+| `--include-testdata` | Count Go files under `testdata/` directories in scan/report views and include testdata paths in contributor rankings. |
 
 ## Metric Meanings
 
@@ -257,19 +259,21 @@ Dynamic subtest sites are reported separately because their runtime case count i
 
 `gocensus who` reads Git history for tracked files under the requested root. It combines factual Git diffstat metrics with transparent commit-message heuristics.
 
-Like `scan`, contributor rankings exclude generated and mock paths by default. Add those paths back explicitly:
+Like `scan`, contributor rankings exclude generated, mock, and testdata paths by default. Add those paths back explicitly:
 
 ```bash
 gocensus who . --include-generated
 gocensus who . --include-mocks
+gocensus who . --include-testdata
 ```
 
-Use `--go-only` to limit the ranking to Go paths while keeping the same generated/mock defaults:
+Use `--go-only` to limit the ranking to Go paths while keeping the same generated/mock/testdata defaults:
 
 ```bash
 gocensus who . --go-only
 gocensus who . --go-only --include-generated
 gocensus who . --go-only --include-mocks
+gocensus who . --go-only --include-testdata
 ```
 
 Contribution path filtering is path-based so it works across historical commits, including files that were later deleted. It does not inspect old file contents for generated-code comments.

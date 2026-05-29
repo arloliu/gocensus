@@ -15,6 +15,9 @@ func keepPath(path string, opts ParseOptions) bool {
 	if excludeMocks(opts) && isMockPath(path) {
 		return false
 	}
+	if excludeTestdata(opts) && isTestdataPath(path) {
+		return false
+	}
 	return true
 }
 
@@ -24,6 +27,10 @@ func excludeGenerated(opts ParseOptions) bool {
 
 func excludeMocks(opts ParseOptions) bool {
 	return !opts.IncludeMocks
+}
+
+func excludeTestdata(opts ParseOptions) bool {
+	return !opts.IncludeTestdata
 }
 
 func isGeneratedPath(path string) bool {
@@ -52,6 +59,16 @@ func isMockPath(path string) bool {
 	}
 	for _, part := range strings.Split(lower, "/") {
 		if part == "mock" || part == "mocks" {
+			return true
+		}
+	}
+	return false
+}
+
+func isTestdataPath(path string) bool {
+	lower := strings.ToLower(filepath.ToSlash(path))
+	for _, part := range strings.Split(lower, "/") {
+		if part == "testdata" {
 			return true
 		}
 	}
