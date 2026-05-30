@@ -26,7 +26,7 @@ go install github.com/arloliu/gocensus/cmd/gocensus@latest
 Install a specific release:
 
 ```bash
-go install github.com/arloliu/gocensus/cmd/gocensus@v0.3.0
+go install github.com/arloliu/gocensus/cmd/gocensus@v0.4.0
 ```
 
 Check the installed version:
