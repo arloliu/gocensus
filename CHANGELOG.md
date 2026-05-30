@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+### Added
+
+- Add `gocensus check` for CI-friendly repository policy checks, starting with `--min-test-ratio`.
+
 ## v0.4.0 - 2026-05-30
 
 ### Changed

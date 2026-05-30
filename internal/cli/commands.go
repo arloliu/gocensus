@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/arloliu/gocensus"
+	"github.com/arloliu/gocensus/internal/check"
 	"github.com/arloliu/gocensus/internal/color"
 	"github.com/arloliu/gocensus/internal/contrib"
 	censusdiff "github.com/arloliu/gocensus/internal/diff"
@@ -23,6 +24,7 @@ type commandLine struct {
 	Packages packagesCmd `cmd:"" help:"Show package-level production and test metrics."`
 	Files    filesCmd    `cmd:"" help:"Show file-level classification and line counts."`
 	Tests    testsCmd    `cmd:"" help:"Summarize tests, subtests, benchmarks, and examples."`
+	Check    checkCmd    `cmd:"" help:"Run CI-friendly repository checks."`
 	Who      whoCmd      `cmd:"" help:"Rank contributors from Git history."`
 	Diff     diffCmd     `cmd:"" help:"Compare Go census metrics between two Git refs."`
 	Hotspots hotspotsCmd `cmd:"" help:"Rank human-authored Go file hotspots by size and Git churn."`
@@ -65,6 +67,13 @@ type filesCmd struct {
 
 type testsCmd struct {
 	rootArg
+}
+
+type checkCmd struct {
+	rootArg
+	MinTestRatio float64 `name:"min-test-ratio" default:"0" help:"Minimum effective test-to-production ratio required."`
+	Format       string  `short:"f" enum:"table,json,markdown" default:"table" help:"Output format: table, json, or markdown."`
+	Output       string  `short:"o" placeholder:"PATH" help:"Write output to file instead of stdout."`
 }
 
 type whoCmd struct {
@@ -116,6 +125,10 @@ func (cmd filesCmd) Help() string {
 
 func (cmd testsCmd) Help() string {
 	return "Summarize test inventory: top-level tests, statically countable subtests, dynamic subtest sites, benchmarks, subbenchmarks, and examples."
+}
+
+func (cmd checkCmd) Help() string {
+	return "Run CI-friendly repository checks and exit nonzero when a configured threshold fails."
 }
 
 func (cmd whoCmd) Help() string {
@@ -172,6 +185,24 @@ func (cmd *testsCmd) Run(cli *commandLine, rt *runtime) error {
 		return err
 	}
 	return renderTests(rt.stdout, result, cli.style(rt))
+}
+
+func (cmd *checkCmd) Run(cli *commandLine, rt *runtime) error {
+	if cmd.MinTestRatio < 0 {
+		return fmt.Errorf("min-test-ratio must be non-negative")
+	}
+	result, err := analyze(rt, cmd.Root, cli.analysisFlags)
+	if err != nil {
+		return err
+	}
+	report := check.Evaluate(result, check.Options{MinTestRatio: cmd.MinTestRatio})
+	if err := renderCheck(rt.stdout, report, cmd.Format, cmd.Output, cli.style(rt)); err != nil {
+		return err
+	}
+	if !report.Passed {
+		return errCheckFailed
+	}
+	return nil
 }
 
 func (cmd *whoCmd) Run(cli *commandLine, rt *runtime) error {

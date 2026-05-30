@@ -21,6 +21,7 @@ func TestRunRootHelpIncludesCommandsAndCommonFlags(t *testing.T) {
 	for _, want := range []string{
 		"Usage:",
 		"scan",
+		"check",
 		"diff",
 		"hotspots",
 		"tests",
@@ -100,6 +101,14 @@ func TestRunAllSubcommandHelpIsSelfExplaining(t *testing.T) {
 				"top-level tests",
 				"statically countable subtests",
 				"dynamic subtest sites",
+			},
+		},
+		{
+			command: "check",
+			wants: []string{
+				"CI",
+				"--min-test-ratio",
+				"-f, --format",
 			},
 		},
 		{

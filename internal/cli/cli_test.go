@@ -278,6 +278,78 @@ func TestRunScanPrintsScopeForIncludedBuckets(t *testing.T) {
 	}
 }
 
+func TestRunCheckPassesWhenThresholdsAreMet(t *testing.T) {
+	dir := writeModule(t)
+	writeFile(t, dir, "main.go", "package main\n\nfunc main() {}\n")
+	writeFile(t, dir, "main_test.go", "package main\n\nimport \"testing\"\n\nfunc TestMain(t *testing.T) {}\n")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"check", dir, "--min-test-ratio", "0.5"}, &stdout, &stderr, "dev")
+
+	if code != 0 {
+		t.Fatalf("Run exit code = %d, want 0; stderr=%q stdout=%q", code, stderr.String(), stdout.String())
+	}
+	output := stdout.String()
+	for _, want := range []string{"Check: example.com/app", "Status: PASS", "Minimum Test Ratio"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout = %q, want %q", output, want)
+		}
+	}
+}
+
+func TestRunCheckFailsWhenThresholdIsMissed(t *testing.T) {
+	dir := writeModule(t)
+	writeFile(t, dir, "main.go", "package main\n\nfunc main() {}\n")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"check", dir, "--min-test-ratio", "1.0"}, &stdout, &stderr, "dev")
+
+	if code != 1 {
+		t.Fatalf("Run exit code = %d, want 1; stderr=%q stdout=%q", code, stderr.String(), stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty policy-failure stderr", stderr.String())
+	}
+	output := stdout.String()
+	for _, want := range []string{"Status: FAIL", "Minimum Test Ratio", "actual 0.00:1 below minimum 1.00:1"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout = %q, want %q", output, want)
+		}
+	}
+}
+
+func TestRunCheckJSONReportsPolicyFailure(t *testing.T) {
+	dir := writeModule(t)
+	writeFile(t, dir, "main.go", "package main\n\nfunc main() {}\n")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := cli.Run(context.Background(), []string{"check", dir, "--min-test-ratio", "1.0", "-f", "json"}, &stdout, &stderr, "dev")
+
+	if code != 1 {
+		t.Fatalf("Run exit code = %d, want 1; stderr=%q stdout=%q", code, stderr.String(), stdout.String())
+	}
+	var payload struct {
+		Passed bool `json:"passed"`
+		Checks []struct {
+			Name    string `json:"name"`
+			Passed  bool   `json:"passed"`
+			Message string `json:"message"`
+		} `json:"checks"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("stdout is not JSON: %v\n%s", err, stdout.String())
+	}
+	if payload.Passed {
+		t.Fatalf("passed = true, want false")
+	}
+	if len(payload.Checks) != 1 || payload.Checks[0].Name != "minimum_test_ratio" || payload.Checks[0].Passed {
+		t.Fatalf("checks = %#v, want one failed minimum_test_ratio check", payload.Checks)
+	}
+}
+
 func hasFileMetric(files []struct {
 	Path string `json:"path"`
 }, path string) bool {

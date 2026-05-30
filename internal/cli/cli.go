@@ -57,6 +57,9 @@ func Run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer,
 		environ: os.Environ(),
 		version: version,
 	}); err != nil {
+		if errors.Is(err, errCheckFailed) {
+			return 1
+		}
 		_, _ = fmt.Fprintf(stderr, "command failed: %v\n", err)
 		return 1
 	}

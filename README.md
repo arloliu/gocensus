@@ -13,6 +13,7 @@ It reports line counts, ratios, package/file breakdowns, and test inventory so y
 - Test-to-production ratios and test share.
 - Package-level and file-level hot spots.
 - Top-level tests, statically countable subtests, dynamic subtest sites, benchmarks, and examples.
+- CI-friendly threshold checks for repository health.
 - Markdown and JSON reports for docs or CI artifacts.
 
 ## Install
@@ -80,6 +81,7 @@ Ratios
 | `gocensus packages [root]` | Show package-level production and test metrics. |
 | `gocensus files [root]` | Show file-level classification and line counts. |
 | `gocensus tests [root]` | Summarize tests, subtests, benchmarks, and examples. |
+| `gocensus check [root]` | Run CI-friendly repository checks. |
 | `gocensus who [root]` | Rank contributors from Git history. |
 | `gocensus diff [root]` | Compare scan metrics between two Git refs. |
 | `gocensus hotspots [root]` | Rank human-authored Go file hotspots by size and Git churn. |
@@ -143,6 +145,12 @@ Show test inventory:
 gocensus tests .
 ```
 
+Run a CI-friendly test-ratio check:
+
+```bash
+gocensus check . --min-test-ratio 0.6
+```
+
 Rank contributors by commit count:
 
 ```bash
@@ -177,7 +185,7 @@ gocensus hotspots . --by churn -n 20
 
 ## Output Formats
 
-`scan`, `report`, `diff`, `hotspots`, and `who` support:
+`scan`, `report`, `check`, `diff`, `hotspots`, and `who` support:
 
 - `table`
 - `json`
@@ -188,6 +196,7 @@ Examples:
 ```bash
 gocensus scan . -f json
 gocensus scan . -f markdown
+gocensus check . --min-test-ratio 0.6 -f json
 gocensus report . -f markdown -o census.md
 ```
 
@@ -225,6 +234,7 @@ Global analysis flags:
 | Tests | `*_test.go` files. |
 | Test / Production Scope | Effective test lines divided by effective production-scope lines. |
 | Test Share | Effective test lines divided by production plus test effective lines. |
+| Check Status | `PASS` when all configured checks meet their thresholds; otherwise `FAIL` and exit code `1`. |
 | Known Test Cases | Top-level tests plus statically countable subtests. |
 | Dynamic Subtest Sites | `t.Run` or `b.Run` call sites where runtime data controls the case count. |
 | Hotspot Score | Effective production lines plus Git churn. |
